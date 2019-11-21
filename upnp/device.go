@@ -53,6 +53,15 @@ func (dev *Device) URN() string {
 	return dev.Type
 }
 
+func (dev *Device) ServiceURNs() []string {
+	urns := make([]string, 0, len(dev.Services))
+	for _, svc := range dev.Services {
+		urns = append(urns, svc.URN())
+	}
+
+	return urns
+}
+
 func (dev *Device) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path == "/" {
 		w.Header().Add("Content-Type", "application/xml")
