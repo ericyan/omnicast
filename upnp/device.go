@@ -12,50 +12,53 @@ import (
 )
 
 type Device struct {
-	UUID [16]byte
-	Name string
-	Type string
+	Name    string
+	Type    string
+	Version uint
 
-	Services map[string]*Service
+	uuid     [16]byte
+	services map[string]*Service
 }
 
-func NewDevice(data []byte) *Device {
-	dev := new(Device)
-	dev.UUID = md5.Sum(data)
-	dev.Services = make(map[string]*Service)
-
-	return dev
+func NewDevice(name, deviceType string, ver uint) *Device {
+	return &Device{
+		Name:     name,
+		Type:     deviceType,
+		Version:  ver,
+		uuid:     md5.Sum([]byte(name + deviceType)),
+		services: make(map[string]*Service),
+	}
 }
 
 func (dev *Device) RegisterService(svc *Service) {
 	if svc != nil {
-		dev.Services[svc.Type] = svc
+		dev.services[svc.Type] = svc
 	}
 }
 
 func (dev *Device) UDN() string {
 	var buf [5 + 36]byte
 	copy(buf[:], "uuid:")
-	hex.Encode(buf[5:], dev.UUID[:4])
+	hex.Encode(buf[5:], dev.uuid[:4])
 	buf[13] = '-'
-	hex.Encode(buf[14:18], dev.UUID[4:6])
+	hex.Encode(buf[14:18], dev.uuid[4:6])
 	buf[18] = '-'
-	hex.Encode(buf[19:23], dev.UUID[6:8])
+	hex.Encode(buf[19:23], dev.uuid[6:8])
 	buf[23] = '-'
-	hex.Encode(buf[24:28], dev.UUID[8:10])
+	hex.Encode(buf[24:28], dev.uuid[8:10])
 	buf[28] = '-'
-	hex.Encode(buf[29:], dev.UUID[10:])
+	hex.Encode(buf[29:], dev.uuid[10:])
 
 	return string(buf[:])
 }
 
 func (dev *Device) URN() string {
-	return dev.Type
+	return "urn:schemas-upnp-org:device:" + dev.Type + ":" + strconv.Itoa(int(dev.Version))
 }
 
 func (dev *Device) ServiceURNs() []string {
-	urns := make([]string, 0, len(dev.Services))
-	for _, svc := range dev.Services {
+	urns := make([]string, 0, len(dev.services))
+	for _, svc := range dev.services {
 		urns = append(urns, svc.URN())
 	}
 
@@ -72,7 +75,7 @@ func (dev *Device) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if strings.HasPrefix(r.URL.Path, "/services/") {
 		st := r.URL.Path[len("/services/"):len(r.URL.Path)]
 
-		svc, ok := dev.Services[st]
+		svc, ok := dev.services[st]
 		if !ok {
 			log.Printf("Service %s not found\n", st)
 			http.NotFound(w, r)
@@ -138,7 +141,16 @@ func (dev *Device) writeDevice(w io.Writer) error {
 type Service struct {
 	Type    string
 	Version uint
-	Actions map[string]func(*SOAPRequest, *SOAPResponse)
+
+	actions map[string]func(*SOAPRequest, *SOAPResponse)
+}
+
+func NewService(serviceType string, ver uint) *Service {
+	return &Service{
+		Type:    serviceType,
+		Version: ver,
+		actions: make(map[string]func(*SOAPRequest, *SOAPResponse)),
+	}
 }
 
 func (svc *Service) URN() string {
@@ -146,7 +158,7 @@ func (svc *Service) URN() string {
 }
 
 func (svc *Service) RegisterAction(name string, handler func(*SOAPRequest, *SOAPResponse)) {
-	svc.Actions[name] = handler
+	svc.actions[name] = handler
 }
 
 func (svc *Service) HandleRequest(req *SOAPRequest) *SOAPResponse {
@@ -154,7 +166,7 @@ func (svc *Service) HandleRequest(req *SOAPRequest) *SOAPResponse {
 	resp.Action = req.Action
 	resp.Args = make(map[string]string)
 
-	handler, ok := svc.Actions[req.Action.Name]
+	handler, ok := svc.actions[req.Action.Name]
 	if !ok {
 		resp.Error = ErrActionNotImplemented
 		return resp
