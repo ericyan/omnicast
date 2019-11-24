@@ -9,6 +9,8 @@ import (
 	"strconv"
 	"strings"
 	"text/template"
+
+	"github.com/ericyan/omnicast/upnp/internal/soap"
 )
 
 type Device struct {
@@ -83,7 +85,7 @@ func (dev *Device) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if r.Method == http.MethodPost {
-			req, err := ParseHTTPRequest(r)
+			req, err := soap.ParseHTTPRequest(r)
 			if err != nil {
 				log.Println(err)
 				return
@@ -142,14 +144,14 @@ type Service struct {
 	Type    string
 	Version uint
 
-	actions map[string]func(*SOAPRequest, *SOAPResponse)
+	actions map[string]func(*soap.Request, *soap.Response)
 }
 
 func NewService(serviceType string, ver uint) *Service {
 	return &Service{
 		Type:    serviceType,
 		Version: ver,
-		actions: make(map[string]func(*SOAPRequest, *SOAPResponse)),
+		actions: make(map[string]func(*soap.Request, *soap.Response)),
 	}
 }
 
@@ -157,18 +159,18 @@ func (svc *Service) URN() string {
 	return "urn:schemas-upnp-org:service:" + svc.Type + ":" + strconv.Itoa(int(svc.Version))
 }
 
-func (svc *Service) RegisterAction(name string, handler func(*SOAPRequest, *SOAPResponse)) {
+func (svc *Service) RegisterAction(name string, handler func(*soap.Request, *soap.Response)) {
 	svc.actions[name] = handler
 }
 
-func (svc *Service) HandleRequest(req *SOAPRequest) *SOAPResponse {
-	resp := new(SOAPResponse)
+func (svc *Service) HandleRequest(req *soap.Request) *soap.Response {
+	resp := new(soap.Response)
 	resp.Action = req.Action
 	resp.Args = make(map[string]string)
 
 	handler, ok := svc.actions[req.Action.Name]
 	if !ok {
-		resp.Error = ErrActionNotImplemented
+		resp.Error = soap.ErrActionNotImplemented
 		return resp
 	}
 

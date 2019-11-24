@@ -1,4 +1,4 @@
-package upnp
+package soap
 
 import (
 	"encoding/xml"
@@ -9,41 +9,41 @@ import (
 	"text/template"
 )
 
-type SOAPAction struct {
+type Action struct {
 	Namespace string
 	Name      string
 }
 
-// An SOAPError represents an UPnP DCP specific error.
-type SOAPError struct {
+// An Error represents an UPnP DCP specific error.
+type Error struct {
 	Code        int
 	Description string
 }
 
 // Error implements the error interface
-func (err *SOAPError) Error() string {
+func (err *Error) Error() string {
 	return err.Description
 }
 
 // UPnP defined error codes
 var (
-	ErrInvalidAction        = &SOAPError{401, "Invalid Action"}
-	ErrInvalidArgs          = &SOAPError{402, "Invalid Args"}
-	ErrActionFailed         = &SOAPError{501, "Action Failed"}
-	ErrArgValueInvalid      = &SOAPError{600, "Argument Value Invalid"}
-	ErrArgValueOutOfRange   = &SOAPError{601, "Argument Value Out of Range"}
-	ErrActionNotImplemented = &SOAPError{602, "Optional Action Not Implemented"}
-	ErrOutOfMemory          = &SOAPError{603, "Out of Memory"}
-	ErrInterventionRequired = &SOAPError{604, "Human Intervention Required"}
-	ErrArgTooLong           = &SOAPError{605, "String Argument Too Long"}
+	ErrInvalidAction        = &Error{401, "Invalid Action"}
+	ErrInvalidArgs          = &Error{402, "Invalid Args"}
+	ErrActionFailed         = &Error{501, "Action Failed"}
+	ErrArgValueInvalid      = &Error{600, "Argument Value Invalid"}
+	ErrArgValueOutOfRange   = &Error{601, "Argument Value Out of Range"}
+	ErrActionNotImplemented = &Error{602, "Optional Action Not Implemented"}
+	ErrOutOfMemory          = &Error{603, "Out of Memory"}
+	ErrInterventionRequired = &Error{604, "Human Intervention Required"}
+	ErrArgTooLong           = &Error{605, "String Argument Too Long"}
 )
 
-type SOAPRequest struct {
-	Action *SOAPAction
+type Request struct {
+	Action *Action
 	Args   map[string]string
 }
 
-func ParseHTTPRequest(r *http.Request) (*SOAPRequest, error) {
+func ParseHTTPRequest(r *http.Request) (*Request, error) {
 	action, err := parseAction(r.Header.Get("SOAPAction"))
 	if err != nil {
 		return nil, err
@@ -54,10 +54,10 @@ func ParseHTTPRequest(r *http.Request) (*SOAPRequest, error) {
 		return nil, err
 	}
 
-	return &SOAPRequest{action, args}, nil
+	return &Request{action, args}, nil
 }
 
-func parseAction(s string) (*SOAPAction, error) {
+func parseAction(s string) (*Action, error) {
 	action, err := strconv.Unquote(s)
 	if err != nil {
 		return nil, err
@@ -65,10 +65,10 @@ func parseAction(s string) (*SOAPAction, error) {
 
 	a := strings.SplitN(action, "#", 2)
 
-	return &SOAPAction{a[0], a[1]}, nil
+	return &Action{a[0], a[1]}, nil
 }
 
-func parseArgs(r io.Reader, action *SOAPAction) (map[string]string, error) {
+func parseArgs(r io.Reader, action *Action) (map[string]string, error) {
 	actionName := xml.Name{action.Namespace, action.Name}
 	args := make(map[string]string)
 
@@ -102,10 +102,10 @@ func parseArgs(r io.Reader, action *SOAPAction) (map[string]string, error) {
 	return nil, io.EOF
 }
 
-type SOAPResponse struct {
-	Action *SOAPAction
+type Response struct {
+	Action *Action
 	Args   map[string]string
-	Error  *SOAPError
+	Error  *Error
 }
 
 const responseTemplate = `<?xml version="1.0" encoding="utf-8"?>
@@ -132,7 +132,7 @@ const responseTemplate = `<?xml version="1.0" encoding="utf-8"?>
 </s:Envelope>
 `
 
-func (resp *SOAPResponse) WriteTo(w io.Writer) error {
+func (resp *Response) WriteTo(w io.Writer) error {
 	funcs := template.FuncMap{
 		"escape": func(s string) string {
 			b := new(strings.Builder)
