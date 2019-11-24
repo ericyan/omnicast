@@ -49,7 +49,7 @@ func NewServer(dev Device, loc *url.URL) (*Server, error) {
 		return nil, err
 	}
 
-	return &Server{dev: dev, addr: addr}, nil
+	return &Server{dev: dev, loc: loc, addr: addr}, nil
 }
 
 func (srv *Server) ListenAndServe() error {
