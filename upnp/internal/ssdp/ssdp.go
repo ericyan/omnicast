@@ -183,6 +183,7 @@ func (srv *Server) handleRequest(req *http.Request, raddr *net.UDPAddr) error {
 
 	log.Printf("Received %s request from %s, ST=%s\n", req.Method, raddr, st)
 
+	n := 0
 	for t, usn := range srv.capabilities() {
 		if st == t || st == "ssdp:all" {
 			resp := &http.Response{
@@ -204,8 +205,14 @@ func (srv *Server) handleRequest(req *http.Request, raddr *net.UDPAddr) error {
 			if err != nil {
 				return err
 			}
+
+			n++
 		}
 	}
 
-	return fmt.Errorf("ST %s not available", st)
+	if n == 0 {
+		return fmt.Errorf("ST %s not found", st)
+	}
+
+	return nil
 }
