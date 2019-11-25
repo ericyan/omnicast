@@ -110,7 +110,7 @@ const deviceTemplate = `<?xml version="1.0" encoding="utf-8" standalone="yes"?>
     <minor>0</minor>
   </specVersion>
   <device>
-    <deviceType>{{.Type}}</deviceType>
+    <deviceType>{{.URN}}</deviceType>
     <UDN>{{.UDN}}</UDN>
     <friendlyName>{{.Name}}</friendlyName>
     <manufacturer>Eric Yan</manufacturer>
