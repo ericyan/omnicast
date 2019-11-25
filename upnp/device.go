@@ -58,6 +58,10 @@ func (dev *Device) URN() string {
 	return "urn:schemas-upnp-org:device:" + dev.Type + ":" + strconv.Itoa(int(dev.Version))
 }
 
+func (dev *Device) Services() map[string]*Service {
+	return dev.services
+}
+
 func (dev *Device) ServiceURNs() []string {
 	urns := make([]string, 0, len(dev.services))
 	for _, svc := range dev.services {
