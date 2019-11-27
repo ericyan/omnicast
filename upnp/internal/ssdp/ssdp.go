@@ -83,8 +83,11 @@ func (srv *Server) ListenAndServe() error {
 		default:
 			n, raddr, err := srv.conn.ReadFromUDP(buf)
 			if err != nil {
-				log.Println("failed to ReadFromUDP:", err)
-				continue
+				if err, ok := err.(net.Error); ok && (err.Timeout() || err.Temporary()) {
+					continue
+				}
+
+				return err
 			}
 
 			req, err := http.ReadRequest(bufio.NewReader(bytes.NewReader(buf[:n])))
@@ -102,9 +105,15 @@ func (srv *Server) ListenAndServe() error {
 }
 
 func (srv *Server) Close() error {
+	if srv.conn == nil {
+		return nil
+	}
+
 	if srv.alive != nil {
 		srv.alive.Stop()
 	}
+
+	srv.conn.SetReadDeadline(time.Now().Add(1 * time.Second))
 
 	srv.done <- true
 	<-srv.done
