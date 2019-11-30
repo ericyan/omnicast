@@ -33,7 +33,14 @@ func (srv *Server) ListenAndServe() error {
 	var g errgroup.Group
 
 	g.Go(srv.ss.ListenAndServe)
-	g.Go(srv.hs.ListenAndServe)
+	g.Go(func() error {
+		err := srv.hs.ListenAndServe()
+		if err == http.ErrServerClosed {
+			return nil
+		}
+
+		return err
+	})
 
 	return g.Wait()
 }
