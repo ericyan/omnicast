@@ -10,7 +10,9 @@ import (
 
 	"github.com/ericyan/iputil"
 
+	"github.com/ericyan/omnicast/mpris"
 	"github.com/ericyan/omnicast/upnp"
+	"github.com/ericyan/omnicast/upnp/av"
 )
 
 var defaultHost = ""
@@ -32,7 +34,15 @@ func main() {
 		os.Exit(0)
 	}
 
-	dev := upnp.NewDevice("Basic Device", "Basic", 1)
+	player, err := mpris.NewPlayer()
+	if err != nil {
+		log.Fatalln(err)
+	}
+	dev, err := av.NewMediaRenderer("MPRIS", player)
+	if err != nil {
+		log.Fatalln(err)
+	}
+
 	addr := *host + ":" + strconv.Itoa(*port)
 
 	srv, err := upnp.NewServer(dev, addr)
