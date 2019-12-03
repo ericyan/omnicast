@@ -88,6 +88,11 @@ func (dev *Device) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		if r.Method == http.MethodGet {
+			http.ServeFile(w, r, "upnp/scpd/"+st+".xml")
+			return
+		}
+
 		if r.Method == http.MethodPost {
 			req, err := soap.ParseHTTPRequest(r)
 			if err != nil {
