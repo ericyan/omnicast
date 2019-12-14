@@ -72,3 +72,8 @@ func (r *Receiver) GetStatus() (*ReceiverStatus, error) {
 
 	return &rs, nil
 }
+
+// Close closes the connection to the receiver.
+func (r *Receiver) Close() error {
+	return r.ch.Close()
+}
