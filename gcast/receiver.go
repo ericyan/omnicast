@@ -37,17 +37,29 @@ type ReceiverStatus struct {
 
 // Receiver represents a Google Cast device.
 type Receiver struct {
+	Addr string
+
 	ch *castv2.Channel
 }
 
+// NewReceiver returns a new Receiver instance.
+func NewReceiver(addr string) *Receiver {
+	return &Receiver{Addr: addr}
+}
+
 // Connect makes a connection to the receiver.
-func Connect(addr string) (*Receiver, error) {
-	ch, err := castv2.NewChannel(addr)
-	if err != nil {
-		return nil, err
+func (r *Receiver) Connect() error {
+	if r.ch != nil {
+		return nil
 	}
 
-	return &Receiver{ch}, nil
+	ch, err := castv2.NewChannel(r.Addr)
+	if err != nil {
+		return err
+	}
+
+	r.ch = ch
+	return nil
 }
 
 // GetStatus returns the devices status of the receiver.
