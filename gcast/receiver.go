@@ -35,6 +35,51 @@ type ReceiverStatus struct {
 	} `json:"status"`
 }
 
+// Image represents an image. The height and width are optional.
+//
+// Ref: https://developers.google.com/cast/docs/reference/messages#Image
+type Image struct {
+	URL    string `json:"url"`
+	Height uint   `json:"height,omitempty"`
+	Width  uint   `json:"width,omitempty"`
+}
+
+// MediaMetadata represents a generic media artifact.
+//
+// Ref: https://developers.google.com/cast/docs/reference/messages#GenericMediaMetadata
+type MediaMetadata struct {
+	Title    string   `json:"title"`
+	Subtitle string   `json:"subtitle,omitempty"`
+	Images   []*Image `json:"image,omitempty"`
+}
+
+// MediaInformation represents a media stream.
+//
+// Ref: https://developers.google.com/cast/docs/reference/messages#MediaInformation
+type MediaInformation struct {
+	ContentID   string         `json:"contentId"`
+	ContentType string         `json:"contentType"`
+	StreamType  string         `json:"streamType"`
+	Metadata    *MediaMetadata `json:"metadata,omitempty"`
+	Duration    float64        `json:"duration,omitempty"`
+}
+
+// MediaStatus represents the current status of the media artifact with
+// respect to the session.
+//
+// https://developers.google.com/cast/docs/reference/messages#MediaStatus
+type MediaStatus struct {
+	Status []struct {
+		MediaSessionID         int               `json:"mediaSessionId"`
+		Media                  *MediaInformation `json:"media,omitempty"`
+		PlaybackRate           float64           `json:"playbackRate"`
+		PlayerState            string            `json:"playerState"`
+		IdleReason             string            `json:"idleReason,omitempty"`
+		CurrentTime            float64           `json:"currentTime"`
+		SupportedMediaCommands int               `json:"supportedMediaCommands"`
+	} `json:"status"`
+}
+
 // Receiver represents a Google Cast device.
 type Receiver struct {
 	Addr string
@@ -83,6 +128,29 @@ func (r *Receiver) GetStatus() (*ReceiverStatus, error) {
 	}
 
 	return &rs, nil
+}
+
+// GetMediaStatus retrieves the media status for all media sessions.
+func (r *Receiver) GetMediaStatus(senderID, sessionID string) (*MediaStatus, error) {
+	respCh := make(chan *castv2.Msg)
+	err := r.ch.Request(
+		senderID,
+		sessionID,
+		castv2.NamespaceMedia,
+		castv2.NewRequest(castv2.TypeGetStatus),
+		respCh,
+	)
+	if err != nil {
+		return nil, err
+	}
+	resp := <-respCh
+
+	var ms MediaStatus
+	if err := json.Unmarshal([]byte(resp.Payload), &ms); err != nil {
+		return nil, err
+	}
+
+	return &ms, nil
 }
 
 // Close closes the connection to the receiver.

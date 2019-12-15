@@ -22,6 +22,7 @@ const (
 	NamespaceConnection = "urn:x-cast:com.google.cast.tp.connection"
 	NamespaceHeartbeat  = "urn:x-cast:com.google.cast.tp.heartbeat"
 	NamespaceReceiver   = "urn:x-cast:com.google.cast.receiver"
+	NamespaceMedia      = "urn:x-cast:com.google.cast.media"
 )
 
 // Cast application protocol message types.
@@ -32,6 +33,7 @@ const (
 	TypePong           = "PONG"
 	TypeGetStatus      = "GET_STATUS"
 	TypeReceiverStatus = "RECEIVER_STATUS"
+	TypeMediaStatus    = "MEDIA_STATUS"
 )
 
 // Msg is a Cast V2 protocol data unit with textual payload.
