@@ -4,6 +4,7 @@ import (
 	"crypto/tls"
 	"encoding/binary"
 	"encoding/json"
+	"errors"
 	"io"
 	"log"
 	"net"
@@ -54,6 +55,8 @@ type Channel struct {
 	heartbeat   *time.Ticker
 	lastReqID   uint64
 	pendingReqs map[uint64]chan *Msg
+	// FIXME: make this thread-safe
+	subscriptions map[string][]chan *Msg
 }
 
 // NewChannel connects to the receiver device at the given address over
@@ -67,12 +70,13 @@ func NewChannel(addr string) (*Channel, error) {
 	}
 
 	c := &Channel{
-		conn:        conn,
-		done:        make(chan struct{}),
-		vconns:      make(map[vconn]struct{}),
-		heartbeat:   time.NewTicker(5 * time.Second),
-		lastReqID:   0,
-		pendingReqs: make(map[uint64]chan *Msg),
+		conn:          conn,
+		done:          make(chan struct{}),
+		vconns:        make(map[vconn]struct{}),
+		heartbeat:     time.NewTicker(5 * time.Second),
+		lastReqID:     0,
+		pendingReqs:   make(map[uint64]chan *Msg),
+		subscriptions: make(map[string][]chan *Msg),
 	}
 
 	go c.listen()
@@ -142,7 +146,14 @@ func (c *Channel) listen() {
 			}
 
 			if msg.DestinationID == "*" {
-				// TODO: handle broadcasts
+				if subs, ok := c.subscriptions[p.Type]; ok {
+					for _, sub := range subs {
+						if sub != nil {
+							sub <- msg
+						}
+					}
+				}
+
 				continue
 			}
 
@@ -228,4 +239,34 @@ func (c *Channel) Request(srcID, descID, namespace string, req Request, respCh c
 	}
 
 	return c.writeMsg(vc.NewMsg(namespace, string(payload)))
+}
+
+// Subscribe registers a subscription to a particular type of broadcast
+// messages. It returns an ID for identifying the subscription (along
+// with the message type) when unsubscribing.
+func (c *Channel) Subscribe(msgType string, subCh chan *Msg) (int, error) {
+	if msgType != TypeReceiverStatus && msgType != TypeMediaStatus {
+		return 0, errors.New("message type unavailable for subscribe")
+	}
+
+	if _, ok := c.subscriptions[msgType]; !ok {
+		c.subscriptions[msgType] = make([]chan *Msg, 0)
+	}
+	c.subscriptions[msgType] = append(c.subscriptions[msgType], subCh)
+
+	return len(c.subscriptions[msgType]), nil
+}
+
+// Unsubscribe unregisters the subscription and closes the subscription
+// channel.
+func (c *Channel) Unsubscribe(msgType string, subID int) error {
+	if subs, ok := c.subscriptions[msgType]; ok {
+		if len(subs) > subID && subs[subID] != nil {
+			subs[subID] = nil
+			return nil
+
+		}
+	}
+
+	return errors.New("subscription not found")
 }

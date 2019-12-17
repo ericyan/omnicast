@@ -85,6 +85,11 @@ type Receiver struct {
 	Addr string
 
 	ch *castv2.Channel
+
+	rsSubID     int
+	rsListeners []func(*ReceiverStatus)
+	msSubID     int
+	msListeners []func(*MediaStatus)
 }
 
 // NewReceiver returns a new Receiver instance.
@@ -102,9 +107,56 @@ func (r *Receiver) Connect() error {
 	if err != nil {
 		return err
 	}
-
 	r.ch = ch
+
+	rsSubCh := make(chan *castv2.Msg)
+	r.rsSubID, err = r.ch.Subscribe(castv2.TypeReceiverStatus, rsSubCh)
+	if err != nil {
+		return err
+	}
+
+	msSubCh := make(chan *castv2.Msg)
+	r.msSubID, err = r.ch.Subscribe(castv2.TypeMediaStatus, msSubCh)
+	if err != nil {
+		return err
+	}
+
+	go func() {
+		for msg := range rsSubCh {
+			rs, err := parseReceiverStatus(msg)
+			if err != nil {
+				continue
+			}
+
+			for _, f := range r.rsListeners {
+				f(rs)
+			}
+		}
+	}()
+
+	go func() {
+		for msg := range msSubCh {
+			ms, err := parseMediaStatus(msg)
+			if err != nil {
+				continue
+			}
+
+			for _, f := range r.msListeners {
+				f(ms)
+			}
+		}
+	}()
+
 	return nil
+}
+
+func parseReceiverStatus(msg *castv2.Msg) (*ReceiverStatus, error) {
+	var rs ReceiverStatus
+	if err := json.Unmarshal([]byte(msg.Payload), &rs); err != nil {
+		return nil, err
+	}
+
+	return &rs, nil
 }
 
 // GetStatus returns the devices status of the receiver.
@@ -122,12 +174,21 @@ func (r *Receiver) GetStatus() (*ReceiverStatus, error) {
 	}
 	resp := <-respCh
 
-	var rs ReceiverStatus
-	if err := json.Unmarshal([]byte(resp.Payload), &rs); err != nil {
+	return parseReceiverStatus(resp)
+}
+
+// OnStatusUpdate registers an event listener for status updates.
+func (r *Receiver) OnStatusUpdate(listener func(*ReceiverStatus)) {
+	r.rsListeners = append(r.rsListeners, listener)
+}
+
+func parseMediaStatus(msg *castv2.Msg) (*MediaStatus, error) {
+	var ms MediaStatus
+	if err := json.Unmarshal([]byte(msg.Payload), &ms); err != nil {
 		return nil, err
 	}
 
-	return &rs, nil
+	return &ms, nil
 }
 
 // GetMediaStatus retrieves the media status for all media sessions.
@@ -145,15 +206,19 @@ func (r *Receiver) GetMediaStatus(senderID, sessionID string) (*MediaStatus, err
 	}
 	resp := <-respCh
 
-	var ms MediaStatus
-	if err := json.Unmarshal([]byte(resp.Payload), &ms); err != nil {
-		return nil, err
-	}
+	return parseMediaStatus(resp)
+}
 
-	return &ms, nil
+// OnMediaStatusUpdate registers an event listener for media status
+// updates.
+func (r *Receiver) OnMediaStatusUpdate(listener func(*MediaStatus)) {
+	r.msListeners = append(r.msListeners, listener)
 }
 
 // Close closes the connection to the receiver.
 func (r *Receiver) Close() error {
+	r.ch.Unsubscribe(castv2.TypeReceiverStatus, r.rsSubID)
+	r.ch.Unsubscribe(castv2.TypeMediaStatus, r.msSubID)
+
 	return r.ch.Close()
 }

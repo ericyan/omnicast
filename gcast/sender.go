@@ -33,15 +33,21 @@ func NewSender(id string) *Sender {
 func (s *Sender) ConnectTo(raddr string) error {
 	s.r = NewReceiver(raddr)
 
-	return s.r.Connect()
-}
-
-func (s *Sender) updateReceiverStatus() error {
-	rs, err := s.r.GetStatus()
+	err := s.r.Connect()
 	if err != nil {
 		return err
 	}
 
+	s.r.OnStatusUpdate(s.updateReceiverStatus)
+	s.r.OnMediaStatusUpdate(s.updateMediaStatus)
+
+	s.getReceiverStatus()
+	s.getMediaStatus()
+
+	return nil
+}
+
+func (s *Sender) updateReceiverStatus(rs *ReceiverStatus) {
 	if apps := rs.Status.Applications; len(apps) > 0 {
 		s.ReceiverApp = apps[0]
 	} else {
@@ -49,11 +55,26 @@ func (s *Sender) updateReceiverStatus() error {
 	}
 
 	s.ReceiverVolume = rs.Status.Volume
+}
+
+func (s *Sender) getReceiverStatus() error {
+	rs, err := s.r.GetStatus()
+	if err != nil {
+		return err
+	}
+
+	s.updateReceiverStatus(rs)
 
 	return nil
 }
 
-func (s *Sender) updateMediaStatus() error {
+func (s *Sender) updateMediaStatus(ms *MediaStatus) {
+	sess := ms.Status[0]
+	s.MediaSessionID = sess.MediaSessionID
+	s.MediaInfo = sess.Media
+}
+
+func (s *Sender) getMediaStatus() error {
 	if s.ReceiverApp == nil || s.ReceiverApp.IsIdleScreen {
 		return ErrReceiverNotReady
 	}
@@ -66,9 +87,16 @@ func (s *Sender) updateMediaStatus() error {
 		return ErrReceiverNotReady
 	}
 
-	sess := ms.Status[0]
-	s.MediaSessionID = sess.MediaSessionID
-	s.MediaInfo = sess.Media
+	s.updateMediaStatus(ms)
 
 	return nil
+}
+
+// Close closes the connected receiver, if any.
+func (s *Sender) Close() error {
+	if s.r == nil {
+		return nil
+	}
+
+	return s.r.Close()
 }
