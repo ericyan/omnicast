@@ -34,6 +34,8 @@ const (
 	TypeGetStatus      = "GET_STATUS"
 	TypeReceiverStatus = "RECEIVER_STATUS"
 	TypeMediaStatus    = "MEDIA_STATUS"
+	TypeLaunch         = "LAUNCH"
+	TypeLoad           = "LOAD"
 )
 
 // Msg is a Cast V2 protocol data unit with textual payload.

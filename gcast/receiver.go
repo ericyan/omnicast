@@ -6,6 +6,12 @@ import (
 	"github.com/ericyan/omnicast/gcast/internal/castv2"
 )
 
+// Common receiver app IDs.
+const (
+	DefaultReceiverAppID = "CC1AD845"
+	YouTubeReceiverAppID = "233637DE"
+)
+
 // ReceiverApplication represents an instance of receiver application.
 type ReceiverApplication struct {
 	AppID               string              `json:"appId"`
@@ -213,6 +219,46 @@ func (r *Receiver) GetMediaStatus(senderID, sessionID string) (*MediaStatus, err
 // updates.
 func (r *Receiver) OnMediaStatusUpdate(listener func(*MediaStatus)) {
 	r.msListeners = append(r.msListeners, listener)
+}
+
+// Launch starts an new receiver application.
+func (r *Receiver) Launch(appID string) error {
+	req := &struct {
+		castv2.Header
+		AppID string `json:"appId"`
+	}{}
+
+	req.Type = castv2.TypeLaunch
+	req.AppID = appID
+
+	return r.ch.Request(
+		castv2.PlatformSenderID,
+		castv2.PlatformReceiverID,
+		castv2.NamespaceReceiver,
+		req,
+		nil,
+	)
+}
+
+// Load loads new content into the media player.
+//
+// Ref: https://developers.google.com/cast/docs/reference/messages#Load
+func (r *Receiver) Load(senderID, sessionID string, media *MediaInformation) error {
+	req := &struct {
+		castv2.Header
+		Media *MediaInformation `json:"media"`
+	}{}
+
+	req.Type = castv2.TypeLoad
+	req.Media = media
+
+	return r.ch.Request(
+		senderID,
+		sessionID,
+		castv2.NamespaceMedia,
+		req,
+		nil,
+	)
 }
 
 // Close closes the connection to the receiver.

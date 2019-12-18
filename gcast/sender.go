@@ -2,11 +2,16 @@ package gcast
 
 import (
 	"errors"
+	"mime"
+	"net/url"
+	"path/filepath"
+	"time"
 )
 
 // Errors used by the Sender.
 var (
 	ErrReceiverNotReady = errors.New("receiver not ready")
+	ErrInvalidMedia     = errors.New("invalid media")
 )
 
 // A Sender is a sender app instance that controls media playback on the
@@ -90,6 +95,50 @@ func (s *Sender) getMediaStatus() error {
 	s.updateMediaStatus(ms)
 
 	return nil
+}
+
+func (s *Sender) ensureAppLaunched(appID string) error {
+	for {
+		select {
+		case <-time.After(2 * time.Second):
+			return ErrReceiverNotReady
+		default:
+			if s.ReceiverApp != nil && s.ReceiverApp.AppID == DefaultReceiverAppID {
+				return nil
+			}
+		}
+	}
+}
+
+// Load casts media to the receiver and starts playback.
+func (s *Sender) Load(mediaURL *url.URL) error {
+	if !mediaURL.IsAbs() {
+		return ErrInvalidMedia
+	}
+
+	ext := filepath.Ext(mediaURL.EscapedPath())
+	contentType := mime.TypeByExtension(ext)
+	if contentType == "" {
+		contentType = "application/octet-stream"
+	}
+
+	if s.ReceiverApp == nil || s.ReceiverApp.AppID != DefaultReceiverAppID {
+		err := s.r.Launch(DefaultReceiverAppID)
+		if err != nil {
+			return err
+		}
+	}
+	if err := s.ensureAppLaunched(DefaultReceiverAppID); err != nil {
+		return err
+	}
+
+	mediaInfo := &MediaInformation{
+		ContentID:   mediaURL.String(),
+		ContentType: contentType,
+		StreamType:  "BUFFERED",
+	}
+
+	return s.r.Load(s.ID, s.ReceiverApp.SessionID, mediaInfo)
 }
 
 // Close closes the connected receiver, if any.
