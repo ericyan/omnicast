@@ -41,33 +41,15 @@ type ReceiverStatus struct {
 	} `json:"status"`
 }
 
-// Image represents an image. The height and width are optional.
-//
-// Ref: https://developers.google.com/cast/docs/reference/messages#Image
-type Image struct {
-	URL    string `json:"url"`
-	Height uint   `json:"height,omitempty"`
-	Width  uint   `json:"width,omitempty"`
-}
-
-// MediaMetadata represents a generic media artifact.
-//
-// Ref: https://developers.google.com/cast/docs/reference/messages#GenericMediaMetadata
-type MediaMetadata struct {
-	Title    string   `json:"title"`
-	Subtitle string   `json:"subtitle,omitempty"`
-	Images   []*Image `json:"image,omitempty"`
-}
-
 // MediaInformation represents a media stream.
 //
 // Ref: https://developers.google.com/cast/docs/reference/messages#MediaInformation
 type MediaInformation struct {
-	ContentID   string         `json:"contentId"`
-	ContentType string         `json:"contentType"`
-	StreamType  string         `json:"streamType"`
-	Metadata    *MediaMetadata `json:"metadata,omitempty"`
-	Duration    float64        `json:"duration,omitempty"`
+	ContentID   string        `json:"contentId"`
+	ContentType string        `json:"contentType"`
+	StreamType  string        `json:"streamType"`
+	Metadata    MediaMetadata `json:"metadata,omitempty"`
+	Duration    float64       `json:"duration,omitempty"`
 }
 
 // MediaStatus represents the current status of the media artifact with
