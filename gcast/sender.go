@@ -27,6 +27,10 @@ type Sender struct {
 	MediaInfo      *MediaInformation
 
 	r *Receiver
+
+	playbackState    string
+	playbackPosition float64
+	playbackRate     float32
 }
 
 // NewSender returns a new Sender with given ID.
@@ -77,6 +81,10 @@ func (s *Sender) updateMediaStatus(ms *MediaStatus) {
 	sess := ms.Status[0]
 	s.MediaSessionID = sess.MediaSessionID
 	s.MediaInfo = sess.Media
+
+	s.playbackState = sess.PlayerState
+	s.playbackPosition = sess.CurrentTime
+	s.playbackRate = sess.PlaybackRate
 }
 
 func (s *Sender) getMediaStatus() error {
@@ -139,6 +147,39 @@ func (s *Sender) Load(mediaURL *url.URL) error {
 	}
 
 	return s.r.Load(s.ID, s.ReceiverApp.SessionID, mediaInfo)
+}
+
+// IsIdle returns true if the recevier has media playback stopped.
+func (s *Sender) IsIdle() bool {
+	return s.playbackState == "IDLE"
+}
+
+// IsPlaying returns true if the recevier is actively playing content.
+func (s *Sender) IsPlaying() bool {
+	return s.playbackState == "PLAYING"
+}
+
+// IsPaused returns true if playback is paused due to user request.
+func (s *Sender) IsPaused() bool {
+	return s.playbackState == "PAUSED"
+}
+
+// IsBuffering returns true if playback is effectively paused due to
+// buffer underflow.
+func (s *Sender) IsBuffering() bool {
+	return s.playbackState == "BUFFERING"
+}
+
+// PlaybackPosition returns the current position of media playback from
+// the beginning of media content. For live streams, it returns the time
+// since playback started.
+func (s *Sender) PlaybackPosition() time.Duration {
+	return time.Duration(s.playbackPosition * float64(time.Second))
+}
+
+// PlaybackRate returns the ratio of speed that media is played at.
+func (s *Sender) PlaybackRate() float32 {
+	return s.playbackRate
 }
 
 // Close closes the connected receiver, if any.

@@ -78,7 +78,7 @@ type MediaStatus struct {
 	Status []struct {
 		MediaSessionID         int               `json:"mediaSessionId"`
 		Media                  *MediaInformation `json:"media,omitempty"`
-		PlaybackRate           float64           `json:"playbackRate"`
+		PlaybackRate           float32           `json:"playbackRate"`
 		PlayerState            string            `json:"playerState"`
 		IdleReason             string            `json:"idleReason,omitempty"`
 		CurrentTime            float64           `json:"currentTime"`
