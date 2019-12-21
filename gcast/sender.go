@@ -6,6 +6,8 @@ import (
 	"net/url"
 	"path/filepath"
 	"time"
+
+	"github.com/ericyan/omnicast"
 )
 
 // Errors used by the Sender.
@@ -23,12 +25,11 @@ type Sender struct {
 	ReceiverApp    *ReceiverApplication
 	ReceiverVolume *ReceiverVolume
 
-	MediaSessionID int
-	MediaInfo      *MediaInformation
-
 	r *Receiver
 
 	lastMediaStatus  time.Time
+	mediaSessionID   int
+	mediaInfo        *MediaInformation
 	playbackState    string
 	playbackPosition float64
 	playbackRate     float32
@@ -80,10 +81,14 @@ func (s *Sender) getReceiverStatus() error {
 
 func (s *Sender) updateMediaStatus(ms *MediaStatus) {
 	sess := ms.Status[0]
-	s.MediaSessionID = sess.MediaSessionID
-	s.MediaInfo = sess.Media
 
 	s.lastMediaStatus = time.Now()
+	s.mediaSessionID = sess.MediaSessionID
+	// The media element will only be returned if it has changed.
+	if sess.Media != nil {
+		s.mediaInfo = sess.Media
+	}
+
 	s.playbackState = sess.PlayerState
 	s.playbackPosition = sess.CurrentTime
 	s.playbackRate = sess.PlaybackRate
@@ -149,6 +154,38 @@ func (s *Sender) Load(mediaURL *url.URL) error {
 	}
 
 	return s.r.Load(s.ID, s.ReceiverApp.SessionID, mediaInfo)
+}
+
+// MediaURL returns the URL of current loaded media.
+func (s *Sender) MediaURL() *url.URL {
+	if s.mediaInfo == nil {
+		return nil
+	}
+
+	u, err := url.Parse(s.mediaInfo.ContentID)
+	if err != nil {
+		return nil
+	}
+
+	return u
+}
+
+// MediaMetadata returns the metadata of current loaded media.
+func (s *Sender) MediaMetadata() omnicast.MediaMetadata {
+	if s.mediaInfo == nil {
+		return nil
+	}
+
+	return s.mediaInfo.Metadata
+}
+
+// MediaDuration returns the duration of current loaded media.
+func (s *Sender) MediaDuration() time.Duration {
+	if s.mediaInfo == nil {
+		return time.Duration(0)
+	}
+
+	return time.Duration(s.mediaInfo.Duration * float64(time.Second))
 }
 
 // IsIdle returns true if the recevier has media playback stopped.
