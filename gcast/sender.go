@@ -28,6 +28,7 @@ type Sender struct {
 
 	r *Receiver
 
+	lastMediaStatus  time.Time
 	playbackState    string
 	playbackPosition float64
 	playbackRate     float32
@@ -82,6 +83,7 @@ func (s *Sender) updateMediaStatus(ms *MediaStatus) {
 	s.MediaSessionID = sess.MediaSessionID
 	s.MediaInfo = sess.Media
 
+	s.lastMediaStatus = time.Now()
 	s.playbackState = sess.PlayerState
 	s.playbackPosition = sess.CurrentTime
 	s.playbackRate = sess.PlaybackRate
@@ -174,7 +176,19 @@ func (s *Sender) IsBuffering() bool {
 // the beginning of media content. For live streams, it returns the time
 // since playback started.
 func (s *Sender) PlaybackPosition() time.Duration {
-	return time.Duration(s.playbackPosition * float64(time.Second))
+	pos := s.playbackPosition
+
+	t := time.Since(s.lastMediaStatus).Seconds()
+	if t > 30 {
+		s.getMediaStatus()
+		return s.PlaybackPosition()
+	}
+
+	if s.IsPlaying() {
+		pos = pos + t*float64(s.PlaybackRate())
+	}
+
+	return time.Duration(pos * float64(time.Second))
 }
 
 // PlaybackRate returns the ratio of speed that media is played at.
