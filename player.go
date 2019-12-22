@@ -24,7 +24,7 @@ type MediaMetadata interface {
 
 // MediaLoader loads the media for playback.
 type MediaLoader interface {
-	Load(media *url.URL, metadata MediaMetadata)
+	Load(media *url.URL, metadata MediaMetadata) error
 }
 
 // MediaInfoReporter provides information for the current media.

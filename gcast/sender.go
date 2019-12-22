@@ -126,7 +126,7 @@ func (s *Sender) ensureAppLaunched(appID string) error {
 }
 
 // Load casts media to the receiver and starts playback.
-func (s *Sender) Load(mediaURL *url.URL) error {
+func (s *Sender) Load(mediaURL *url.URL, mediaMetadata omnicast.MediaMetadata) error {
 	if !mediaURL.IsAbs() {
 		return ErrInvalidMedia
 	}
@@ -147,9 +147,27 @@ func (s *Sender) Load(mediaURL *url.URL) error {
 		return err
 	}
 
+	metadata := MediaMetadata{"type": 0}
+	if mediaMetadata != nil {
+		if mediaMetadata.Title() != "" {
+			metadata["title"] = mediaMetadata.Title()
+		}
+
+		if mediaMetadata.Subtitle() != "" {
+			metadata["subtitle"] = mediaMetadata.Subtitle()
+		}
+
+		if mediaMetadata.ImageURL() != nil {
+			metadata["images"] = []map[string]string{
+				map[string]string{"url": mediaMetadata.ImageURL().String()},
+			}
+		}
+	}
+
 	mediaInfo := &MediaInformation{
 		ContentID:   mediaURL.String(),
 		ContentType: contentType,
+		Metadata:    metadata,
 		StreamType:  "BUFFERED",
 	}
 
