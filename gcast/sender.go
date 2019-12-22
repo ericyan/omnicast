@@ -158,7 +158,7 @@ func (s *Sender) Load(mediaURL *url.URL) error {
 
 // MediaURL returns the URL of current loaded media.
 func (s *Sender) MediaURL() *url.URL {
-	if s.mediaInfo == nil {
+	if s.ReceiverApp == nil || s.mediaInfo == nil {
 		return nil
 	}
 
