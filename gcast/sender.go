@@ -162,12 +162,20 @@ func (s *Sender) MediaURL() *url.URL {
 		return nil
 	}
 
-	u, err := url.Parse(s.mediaInfo.ContentID)
-	if err != nil {
-		return nil
+	switch s.ReceiverApp.AppID {
+	case YouTubeReceiverAppID:
+		return &url.URL{
+			Scheme: "https",
+			Host:   "youtu.be",
+			Path:   s.mediaInfo.ContentID,
+		}
+	default:
+		u, err := url.Parse(s.mediaInfo.ContentID)
+		if err != nil {
+			return nil
+		}
+		return u
 	}
-
-	return u
 }
 
 // MediaMetadata returns the metadata of current loaded media.
