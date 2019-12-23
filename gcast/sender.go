@@ -259,6 +259,43 @@ func (s *Sender) PlaybackRate() float32 {
 	return s.playbackRate
 }
 
+// Play begins playback of the loaded media content from the current
+// playback position.
+func (s *Sender) Play() {
+	if s.ReceiverApp == nil || s.mediaInfo == nil {
+		return
+	}
+
+	s.r.Play(s.ID, s.ReceiverApp.SessionID, s.mediaSessionID)
+}
+
+// Pause pauses playback of the current content.
+func (s *Sender) Pause() {
+	if s.ReceiverApp == nil || s.mediaInfo == nil {
+		return
+	}
+
+	s.r.Pause(s.ID, s.ReceiverApp.SessionID, s.mediaSessionID)
+}
+
+// Stop stops the playback and unload the current content
+func (s *Sender) Stop() {
+	if s.ReceiverApp == nil || s.mediaInfo == nil {
+		return
+	}
+
+	s.r.Stop(s.ID, s.ReceiverApp.SessionID, s.mediaSessionID)
+}
+
+// SeekTo sets the current playback position to pos,
+func (s *Sender) SeekTo(pos time.Duration) {
+	if s.ReceiverApp == nil || s.mediaInfo == nil {
+		return
+	}
+
+	s.r.Seek(s.ID, s.ReceiverApp.SessionID, s.mediaSessionID, pos.Seconds())
+}
+
 // Close closes the connected receiver, if any.
 func (s *Sender) Close() error {
 	if s.r == nil {

@@ -243,6 +243,92 @@ func (r *Receiver) Load(senderID, sessionID string, media *MediaInformation) err
 	)
 }
 
+// Play begins playback of the loaded media content from the current
+// playback position.
+//
+// https://developers.google.com/cast/docs/reference/messages#Play
+func (r *Receiver) Play(senderID, sessionID string, mediaSessionID int) error {
+	req := &struct {
+		castv2.Header
+		MediaSessionID int `json:"mediaSessionId"`
+	}{}
+
+	req.Type = castv2.TypePlay
+	req.MediaSessionID = mediaSessionID
+
+	return r.ch.Request(
+		senderID,
+		sessionID,
+		castv2.NamespaceMedia,
+		req,
+		nil,
+	)
+}
+
+// Pause pauses playback of the current content.
+//
+// https://developers.google.com/cast/docs/reference/messages#Pause
+func (r *Receiver) Pause(senderID, sessionID string, mediaSessionID int) error {
+	req := &struct {
+		castv2.Header
+		MediaSessionID int `json:"mediaSessionId"`
+	}{}
+
+	req.Type = castv2.TypePause
+	req.MediaSessionID = mediaSessionID
+
+	return r.ch.Request(
+		senderID,
+		sessionID,
+		castv2.NamespaceMedia,
+		req,
+		nil,
+	)
+}
+
+// Stop stops the playback and unload the current content
+//
+// https://developers.google.com/cast/docs/reference/messages#Stop
+func (r *Receiver) Stop(senderID, sessionID string, mediaSessionID int) error {
+	req := &struct {
+		castv2.Header
+		MediaSessionID int `json:"mediaSessionId"`
+	}{}
+
+	req.Type = castv2.TypeStop
+	req.MediaSessionID = mediaSessionID
+
+	return r.ch.Request(
+		senderID,
+		sessionID,
+		castv2.NamespaceMedia,
+		req,
+		nil,
+	)
+}
+
+// Seek sets the current playback position to pos, which is the number
+// of seconds since beginning of content
+func (r *Receiver) Seek(senderID, sessionID string, mediaSessionID int, pos float64) error {
+	req := &struct {
+		castv2.Header
+		MediaSessionID int     `json:"mediaSessionId"`
+		CurrentTime    float64 `json:"currentTime"`
+	}{}
+
+	req.Type = castv2.TypeSeek
+	req.MediaSessionID = mediaSessionID
+	req.CurrentTime = pos
+
+	return r.ch.Request(
+		senderID,
+		sessionID,
+		castv2.NamespaceMedia,
+		req,
+		nil,
+	)
+}
+
 // Close closes the connection to the receiver.
 func (r *Receiver) Close() error {
 	r.ch.Unsubscribe(castv2.TypeReceiverStatus, r.rsSubID)
