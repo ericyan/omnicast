@@ -59,6 +59,10 @@ func (s *Sender) ConnectTo(raddr string) error {
 }
 
 func (s *Sender) updateReceiverStatus(rs *ReceiverStatus) {
+	if rs == nil {
+		return
+	}
+
 	if apps := rs.Status.Applications; len(apps) > 0 {
 		s.ReceiverApp = apps[0]
 	} else {
@@ -80,6 +84,10 @@ func (s *Sender) getReceiverStatus() error {
 }
 
 func (s *Sender) updateMediaStatus(ms *MediaStatus) {
+	if ms == nil || len(ms.Status) == 0 {
+		return
+	}
+
 	sess := ms.Status[0]
 
 	s.lastMediaStatus = time.Now()
