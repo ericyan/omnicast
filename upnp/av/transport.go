@@ -43,7 +43,7 @@ func AVTransport(player omnicast.MediaPlayer) *upnp.Service {
 			return
 		}
 
-		mediaMetadata := new(types.Metadata)
+		mediaMetadata := make(types.Metadata)
 		if didl, ok := req.Args["CurrentURIMetaData"]; ok && didl != "" {
 			if err := mediaMetadata.UnmarshalText([]byte(didl)); err != nil {
 				log.Println("parsing metadata failed:", err)
