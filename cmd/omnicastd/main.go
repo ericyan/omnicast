@@ -10,7 +10,7 @@ import (
 
 	"github.com/ericyan/iputil"
 
-	"github.com/ericyan/omnicast/mpris"
+	"github.com/ericyan/omnicast/gcast"
 	"github.com/ericyan/omnicast/upnp"
 	"github.com/ericyan/omnicast/upnp/av"
 )
@@ -26,6 +26,7 @@ func init() {
 func main() {
 	host := flag.String("host", defaultHost, "host")
 	port := flag.Int("p", 2278, "port")
+	cast := flag.String("cast", "", "address to cast device")
 	h := flag.Bool("h", false, "show help")
 	flag.Parse()
 
@@ -34,11 +35,12 @@ func main() {
 		os.Exit(0)
 	}
 
-	player, err := mpris.NewPlayer()
+	player := gcast.NewSender("sender-omnicast")
+	err := player.ConnectTo(*cast)
 	if err != nil {
 		log.Fatalln(err)
 	}
-	dev, err := av.NewMediaRenderer("MPRIS", player)
+	dev, err := av.NewMediaRenderer("Chromecast (DLNA)", player)
 	if err != nil {
 		log.Fatalln(err)
 	}
