@@ -222,8 +222,13 @@ func (s *Sender) MediaDuration() time.Duration {
 	return time.Duration(s.mediaInfo.Duration * float64(time.Second))
 }
 
-// IsIdle returns true if the recevier has media playback stopped.
+// IsIdle returns true if the recevier device does not have an receiver
+// app running or have media playback stopped.
 func (s *Sender) IsIdle() bool {
+	if s.ReceiverApp == nil || s.ReceiverApp.IsIdleScreen {
+		return true
+	}
+
 	return s.playbackState == "IDLE"
 }
 
@@ -247,6 +252,10 @@ func (s *Sender) IsBuffering() bool {
 // the beginning of media content. For live streams, it returns the time
 // since playback started.
 func (s *Sender) PlaybackPosition() time.Duration {
+	if s.IsIdle() {
+		return time.Duration(0)
+	}
+
 	pos := s.playbackPosition
 
 	t := time.Since(s.lastMediaStatus).Seconds()
