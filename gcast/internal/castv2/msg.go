@@ -8,7 +8,7 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 
-	"github.com/ericyan/omnicast/gcast/internal/castv2pb/cast_channel"
+	"github.com/ericyan/omnicast/gcast/internal/castv2/cast_channel"
 )
 
 // Sender and receiver IDs to use for platform messages.
