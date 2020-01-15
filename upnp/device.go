@@ -9,8 +9,12 @@ import (
 	"strconv"
 	"strings"
 	"text/template"
+	"time"
+
+	"github.com/rakyll/statik/fs"
 
 	"github.com/ericyan/omnicast/upnp/internal/soap"
+	_ "github.com/ericyan/omnicast/upnp/scpd"
 )
 
 type Device struct {
@@ -89,7 +93,22 @@ func (dev *Device) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if r.Method == http.MethodGet {
-			http.ServeFile(w, r, "upnp/scpd/"+st+".xml")
+			scpd, err := fs.New()
+			if err != nil {
+				log.Println(err)
+				http.NotFound(w, r)
+				return
+			}
+
+			filename := "/" + st + ".xml"
+			f, err := scpd.Open(filename)
+			if err != nil {
+				log.Println(err)
+				http.NotFound(w, r)
+				return
+			}
+
+			http.ServeContent(w, r, filename, time.Time{}, f)
 			return
 		}
 
