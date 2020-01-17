@@ -1,10 +1,11 @@
-CASTV2 = gcast/internal/castv2
-
-bin/omnicastd:
+.PHONY: build
+build:
+	$(MAKE) -C gcast build
+	$(MAKE) -C upnp build
 	go build -o bin/omnicastd cmd/omnicastd/main.go
 
-upnp/scpd/statik.go:
-	statik -src upnp/scpd/ -dest upnp/ -p scpd -c "Package scpd contains service definitions."
-
-$(CASTV2)/cast_channel/cast_channel.pb.go:
-	$(MAKE) -C $(CASTV2)/cast_channel
+.PHONY: clean
+clean:
+	$(MAKE) -C gcast clean
+	$(MAKE) -C upnp clean
+	rm -f bin/omnicastd
