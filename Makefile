@@ -6,6 +6,9 @@ build:
 
 .PHONY: clean
 clean:
+	rm -f bin/omnicastd
+
+.PHONY: clean-all
+clean-all: clean
 	$(MAKE) -C gcast clean
 	$(MAKE) -C upnp clean
-	rm -f bin/omnicastd

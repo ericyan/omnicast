@@ -1,7 +1,7 @@
 CAST_CHANNEL = internal/castv2/cast_channel
 
 .PHONY: build
-build: clean $(CAST_CHANNEL)/cast_channel.pb.go
+build: $(CAST_CHANNEL)/cast_channel.pb.go
 
 .PHONY: clean
 clean:
