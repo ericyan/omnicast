@@ -13,8 +13,8 @@ import (
 
 	"github.com/rakyll/statik/fs"
 
+	_ "github.com/ericyan/omnicast/upnp/internal/scpd"
 	"github.com/ericyan/omnicast/upnp/internal/soap"
-	_ "github.com/ericyan/omnicast/upnp/scpd"
 )
 
 type Device struct {
