@@ -12,6 +12,8 @@ func NewMediaRenderer(name string, player omnicast.MediaPlayer) (*upnp.Device, e
 	dev := upnp.NewDevice(name, "MediaRenderer", 1)
 
 	dev.RegisterService(AVTransport(player))
+	dev.RegisterService(upnp.NewService("RenderingControl", 1))
+	dev.RegisterService(upnp.NewService("ConnectionManager", 1))
 
 	return dev, nil
 }
