@@ -76,6 +76,8 @@ func (dev *Device) ServiceURNs() []string {
 }
 
 func (dev *Device) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	log.Printf("[DEBUG] %s %s from %s\n", r.Method, r.URL.Path, r.RemoteAddr)
+
 	if r.URL.Path == "/" {
 		w.Header().Add("Content-Type", "application/xml")
 		dev.writeDevice(w)
