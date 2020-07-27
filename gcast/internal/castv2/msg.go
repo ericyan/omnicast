@@ -40,6 +40,7 @@ const (
 	TypePause          = "PAUSE"
 	TypeStop           = "STOP"
 	TypeSeek           = "SEEK"
+	TypeSetVolume      = "SET_VOLUME"
 )
 
 // Msg is a Cast V2 protocol data unit with textual payload.

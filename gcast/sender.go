@@ -313,6 +313,39 @@ func (s *Sender) SeekTo(pos time.Duration) {
 	s.r.Seek(s.ID, s.ReceiverApp.SessionID, s.mediaSessionID, pos.Seconds())
 }
 
+// VolumeLevel returns receiver volume as a number between 0.0 and 1.0.
+func (s *Sender) VolumeLevel() float64 {
+	if s.ReceiverVolume == nil {
+		return 0.0
+	}
+
+	return s.ReceiverVolume.Level
+}
+
+// IsMuted returns true if the receiver is muted.
+func (s *Sender) IsMuted() bool {
+	if s.ReceiverVolume == nil {
+		return false
+	}
+
+	return s.ReceiverVolume.Muted
+}
+
+// SetVolumeLevel sets receiver volume level.
+func (s *Sender) SetVolumeLevel(level float64) {
+	s.r.SetVolume(&ReceiverVolume{Level: level})
+}
+
+// Mute mutes the receiver.
+func (s *Sender) Mute() {
+	s.r.SetVolume(&ReceiverVolume{Muted: true})
+}
+
+// Unmute unmutes the receiver.
+func (s *Sender) Unmute() {
+	s.r.SetVolume(&ReceiverVolume{Muted: false})
+}
+
 // Close closes the connected receiver, if any.
 func (s *Sender) Close() error {
 	if s.r == nil {

@@ -26,10 +26,10 @@ type ReceiverApplication struct {
 
 // ReceiverVolume represents the volume of the receiver device.
 type ReceiverVolume struct {
-	ControlType  string  `json:"controlType"`
-	Level        float64 `json:"level"`
-	Muted        bool    `json:"muted"`
-	StepInterval float64 `json:"stepInterval"`
+	ControlType  string  `json:"controlType,omitempty"`
+	Level        float64 `json:"level,omitempty"`
+	Muted        bool    `json:"muted,omitempty"`
+	StepInterval float64 `json:"stepInterval,omitempty"`
 }
 
 // ReceiverStatus represents the devices status of the receiver.
@@ -212,6 +212,25 @@ func (r *Receiver) Launch(appID string) error {
 
 	req.Type = castv2.TypeLaunch
 	req.AppID = appID
+
+	return r.ch.Request(
+		castv2.PlatformSenderID,
+		castv2.PlatformReceiverID,
+		castv2.NamespaceReceiver,
+		req,
+		nil,
+	)
+}
+
+// SetVolume sets the receiver volume.
+func (r *Receiver) SetVolume(vol *ReceiverVolume) error {
+	req := &struct {
+		castv2.Header
+		Volume *ReceiverVolume `json:"volume"`
+	}{}
+
+	req.Type = castv2.TypeSetVolume
+	req.Volume = vol
 
 	return r.ch.Request(
 		castv2.PlatformSenderID,
