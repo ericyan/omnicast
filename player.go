@@ -11,6 +11,8 @@ type MediaPlayer interface {
 	MediaInfoReporter
 	PlaybackStateReporter
 	PlaybackController
+	VolumeReporter
+	VolumeController
 }
 
 // MediaMetadata describes a media artefact.
