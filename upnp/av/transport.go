@@ -12,18 +12,17 @@ import (
 	"github.com/ericyan/omnicast/upnp/internal/types"
 )
 
-// Action-specific errors defined in AVTransport:1 service spec.
-var (
-	ErrSeekModeNotSupported = &soap.Error{710, "Seek mode not supported"}
-	ErrIllegalSeekTarget    = &soap.Error{711, "Illegal seek target"}
-	ErrInvalidInstanceID    = &soap.Error{719, "Invalid InstanceID"}
-)
-
 // AVTransport returns an AVTransport UPnP service for the Player.
 //
 // Spec: http://upnp.org/specs/av/UPnP-av-AVTransport-v1-Service.pdf
 func AVTransport(player omnicast.MediaPlayer) *upnp.Service {
 	svc := upnp.NewService("AVTransport", 1)
+
+	var (
+		ErrSeekModeNotSupported = &soap.Error{710, "Seek mode not supported"}
+		ErrIllegalSeekTarget    = &soap.Error{711, "Illegal seek target"}
+		ErrInvalidInstanceID    = &soap.Error{718, "Invalid InstanceID"}
+	)
 
 	svc.RegisterAction("SetAVTransportURI", func(req *soap.Request, resp *soap.Response) {
 		if req.Args["InstanceID"] != "0" {

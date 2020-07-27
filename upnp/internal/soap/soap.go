@@ -122,8 +122,8 @@ const responseTemplate = `<?xml version="1.0" encoding="utf-8"?>
 			<faultstring>UPnPError</faultstring>
 			<detail>
 				<UPnPError xmlns="urn:schemas-upnp-org:control-1-0">
-					<errorCode>{{.Error.Code}}</errorCode>
-					<errorDescription>{{.Error.Description}}</errorDescription>
+					<errorCode>{{.Code}}</errorCode>
+					<errorDescription>{{.Description}}</errorDescription>
 				</UPnPError>
 			</detail>
 		</s:Fault>
