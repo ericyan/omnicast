@@ -190,7 +190,7 @@ func (srv *Server) handleRequest(req *http.Request, raddr *net.UDPAddr) error {
 		return errors.New("ST is empty")
 	}
 
-	log.Printf("Received %s request from %s, ST=%s\n", req.Method, raddr, st)
+	log.Printf("[DEBUG] %s %s from %s\n", req.Method, st, raddr)
 
 	n := 0
 	for t, usn := range srv.capabilities() {
@@ -217,10 +217,6 @@ func (srv *Server) handleRequest(req *http.Request, raddr *net.UDPAddr) error {
 
 			n++
 		}
-	}
-
-	if n == 0 {
-		return fmt.Errorf("ST %s not found", st)
 	}
 
 	return nil
