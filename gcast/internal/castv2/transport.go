@@ -145,6 +145,25 @@ func (c *Channel) listen() {
 				continue
 			}
 
+			vc := vconn{msg.DestinationID, msg.SourceID}
+			switch msg.Namespace {
+			case NamespaceHeartbeat:
+				if p.Type == TypePing {
+					c.writeMsg(vc.NewPongMsg())
+				}
+
+				continue
+			case NamespaceConnection:
+				if p.Type == TypeClose {
+					if _, ok := c.vconns[vc]; ok {
+						log.Println("Closing virtual connection:", msg)
+						delete(c.vconns, vc)
+					}
+				}
+
+				continue
+			}
+
 			log.Println("[DEBUG] castv2:", msg)
 
 			if msg.DestinationID == "*" {
@@ -159,29 +178,10 @@ func (c *Channel) listen() {
 				continue
 			}
 
-			vc := vconn{msg.DestinationID, msg.SourceID}
-			if _, ok := c.vconns[vc]; ok {
-				switch msg.Namespace {
-				case NamespaceHeartbeat:
-					if p.Type == TypePing {
-						c.writeMsg(vc.NewPongMsg())
-					}
-
-					continue
-				case NamespaceConnection:
-					if p.Type == TypeClose {
-						log.Println("Closing virtual connection:", msg)
-						delete(c.vconns, vc)
-					}
-
-					continue
-				}
-
-				if ch, ok := c.pendingReqs[p.RequestID]; ok {
-					ch <- msg
-					delete(c.pendingReqs, p.RequestID)
-					continue
-				}
+			if ch, ok := c.pendingReqs[p.RequestID]; ok {
+				ch <- msg
+				delete(c.pendingReqs, p.RequestID)
+				continue
 			}
 		}
 	}
