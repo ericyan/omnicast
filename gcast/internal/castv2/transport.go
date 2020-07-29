@@ -53,6 +53,7 @@ type Channel struct {
 	done        chan struct{}
 	vconns      map[vconn]struct{}
 	heartbeat   *time.Ticker
+	lastMsgAt   time.Time
 	lastReqID   uint64
 	pendingReqs map[uint64]chan *Msg
 	// FIXME: make this thread-safe
@@ -74,6 +75,7 @@ func NewChannel(addr string) (*Channel, error) {
 		done:          make(chan struct{}),
 		vconns:        make(map[vconn]struct{}),
 		heartbeat:     time.NewTicker(5 * time.Second),
+		lastMsgAt:     time.Unix(0, 0),
 		lastReqID:     0,
 		pendingReqs:   make(map[uint64]chan *Msg),
 		subscriptions: make(map[string][]chan *Msg),
@@ -139,6 +141,8 @@ func (c *Channel) listen() {
 				return
 			}
 
+			c.lastMsgAt = time.Now()
+
 			var p Header
 			if err := json.Unmarshal([]byte(msg.Payload), &p); err != nil {
 				log.Printf("unexpected payload: %s\n", msg.Payload)
@@ -189,6 +193,12 @@ func (c *Channel) listen() {
 
 func (c *Channel) keepalive() {
 	for range c.heartbeat.C {
+		if time.Now().Sub(c.lastMsgAt).Seconds() > 10 {
+			log.Println("gcast: timeout, closing channel...")
+			c.Close()
+			break
+		}
+
 		for vc := range c.vconns {
 			c.writeMsg(vc.NewPingMsg())
 		}
