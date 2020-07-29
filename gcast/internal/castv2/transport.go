@@ -145,6 +145,8 @@ func (c *Channel) listen() {
 				continue
 			}
 
+			log.Println("[DEBUG] castv2:", msg)
+
 			if msg.DestinationID == "*" {
 				if subs, ok := c.subscriptions[p.Type]; ok {
 					for _, sub := range subs {
@@ -168,6 +170,7 @@ func (c *Channel) listen() {
 					continue
 				case NamespaceConnection:
 					if p.Type == TypeClose {
+						log.Println("Closing virtual connection:", msg)
 						delete(c.vconns, vc)
 					}
 
@@ -180,8 +183,6 @@ func (c *Channel) listen() {
 					continue
 				}
 			}
-
-			log.Println("Unhandled msg:", msg)
 		}
 	}
 }
