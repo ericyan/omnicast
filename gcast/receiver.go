@@ -75,8 +75,10 @@ type Receiver struct {
 	ch *castv2.Channel
 
 	rsSubID     int
+	rsSubCh     chan *castv2.Msg
 	rsListeners []func(*ReceiverStatus)
 	msSubID     int
+	msSubCh     chan *castv2.Msg
 	msListeners []func(*MediaStatus)
 
 	app *ReceiverApplication
@@ -85,86 +87,99 @@ type Receiver struct {
 
 // NewReceiver returns a new Receiver instance.
 func NewReceiver(addr string) *Receiver {
-	return &Receiver{Addr: addr}
+	return &Receiver{
+		Addr:    addr,
+		rsSubCh: make(chan *castv2.Msg),
+		msSubCh: make(chan *castv2.Msg),
+	}
 }
 
 // Connect makes a connection to the receiver.
 func (r *Receiver) Connect() error {
-	if r.ch != nil && !r.ch.IsClosed() {
-		return nil
-	}
+	var err error
 
-	ch, err := castv2.NewChannel(r.Addr)
-	if err != nil {
-		return err
-	}
-	r.ch = ch
+	if r.ch == nil {
+		r.ch = castv2.NewChannel(r.Addr)
 
-	rsSubCh := make(chan *castv2.Msg)
-	r.rsSubID, err = r.ch.Subscribe(castv2.TypeReceiverStatus, rsSubCh)
-	if err != nil {
-		return err
-	}
-
-	go func() {
-		for msg := range rsSubCh {
-			rs := new(ReceiverStatus)
-			if err := json.Unmarshal([]byte(msg.Payload), &rs); err != nil {
-				continue
-			}
-
-			if apps := rs.Status.Applications; len(apps) > 0 {
-				r.app = apps[0]
-			} else {
-				r.app = nil
-			}
-
-			r.vol = rs.Status.Volume
-
-			for _, f := range r.rsListeners {
-				f(rs)
-			}
+		r.rsSubID, err = r.ch.Subscribe(castv2.TypeReceiverStatus, r.rsSubCh)
+		if err != nil {
+			return err
 		}
-	}()
 
-	// Request receiver status for the initial state
-	r.ch.Request(
-		castv2.PlatformSenderID,
-		castv2.PlatformReceiverID,
-		castv2.NamespaceReceiver,
-		castv2.NewRequest(castv2.TypeGetStatus),
-		rsSubCh,
-	)
+		go func() {
+			for msg := range r.rsSubCh {
+				rs := new(ReceiverStatus)
+				if err := json.Unmarshal([]byte(msg.Payload), &rs); err != nil {
+					continue
+				}
 
-	msSubCh := make(chan *castv2.Msg)
-	r.msSubID, err = r.ch.Subscribe(castv2.TypeMediaStatus, msSubCh)
-	if err != nil {
-		return err
+				if apps := rs.Status.Applications; len(apps) > 0 {
+					r.app = apps[0]
+				} else {
+					r.app = nil
+				}
+
+				r.vol = rs.Status.Volume
+
+				for _, f := range r.rsListeners {
+					f(rs)
+				}
+			}
+		}()
+
+		r.msSubID, err = r.ch.Subscribe(castv2.TypeMediaStatus, r.msSubCh)
+		if err != nil {
+			return err
+		}
+
+		go func() {
+			for msg := range r.msSubCh {
+				ms, err := parseMediaStatus(msg)
+				if err != nil {
+					continue
+				}
+
+				for _, f := range r.msListeners {
+					f(ms)
+				}
+			}
+		}()
 	}
 
-	go func() {
-		for msg := range msSubCh {
-			ms, err := parseMediaStatus(msg)
-			if err != nil {
-				continue
-			}
-
-			for _, f := range r.msListeners {
-				f(ms)
-			}
+	if r.ch.IsClosed() {
+		err = r.ch.Connect()
+		if err != nil {
+			return err
 		}
-	}()
+
+		// Request receiver status to update state
+		r.ch.Request(
+			castv2.PlatformSenderID,
+			castv2.PlatformReceiverID,
+			castv2.NamespaceReceiver,
+			castv2.NewRequest(castv2.TypeGetStatus),
+			r.rsSubCh,
+		)
+	}
 
 	return nil
 }
 
 // Application returns the current running receiver application, if any.
 func (r *Receiver) Application() *ReceiverApplication {
+	if r.ch == nil || r.ch.IsClosed() {
+		return nil
+	}
+
 	return r.app
 }
 
 // Volume returns the receiver volume, if known.
 func (r *Receiver) Volume() *ReceiverVolume {
+	if r.ch == nil || r.ch.IsClosed() {
+		return nil
+	}
+
 	return r.vol
 }
 

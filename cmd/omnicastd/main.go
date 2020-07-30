@@ -35,8 +35,8 @@ func main() {
 		os.Exit(0)
 	}
 
-	player := gcast.NewSender("sender-omnicast")
-	err := player.ConnectTo(*cast)
+	r := gcast.NewReceiver(*cast)
+	player, err := gcast.NewSender("sender-omnicast", r)
 	if err != nil {
 		log.Fatalln(err)
 	}

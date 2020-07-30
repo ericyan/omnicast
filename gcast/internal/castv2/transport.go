@@ -205,7 +205,7 @@ func (c *Channel) keepalive() {
 		if time.Now().Sub(c.lastMsgAt).Seconds() > 10 {
 			log.Println("gcast: timeout, closing channel...")
 			c.Close()
-			break
+			return
 		}
 
 		for vc := range c.vconns {
@@ -217,6 +217,10 @@ func (c *Channel) keepalive() {
 // Close terminates all established virtual connections and then closes
 // the underying TLS connection.
 func (c *Channel) Close() error {
+	if c.IsClosed() {
+		return nil
+	}
+
 	// Stop heartbeats
 	c.heartbeat.Stop()
 

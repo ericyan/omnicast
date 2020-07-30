@@ -2,6 +2,7 @@ package gcast
 
 import (
 	"errors"
+	"log"
 	"mime"
 	"net/url"
 	"path/filepath"
@@ -21,8 +22,7 @@ var (
 // when communicating with the receiver.
 type Sender struct {
 	ID string
-
-	r *Receiver
+	r  *Receiver
 
 	lastMediaStatus  time.Time
 	mediaSessionID   int
@@ -32,24 +32,18 @@ type Sender struct {
 	playbackRate     float32
 }
 
-// NewSender returns a new Sender with given ID.
-func NewSender(id string) *Sender {
-	return &Sender{ID: id}
-}
+// NewSender returns a new Sender and connects to the Receiver.
+func NewSender(id string, r *Receiver) (*Sender, error) {
+	s := &Sender{ID: id, r: r}
 
-// ConnectTo makes a connection to the Receiver.
-func (s *Sender) ConnectTo(raddr string) error {
-	s.r = NewReceiver(raddr)
-
-	err := s.r.Connect()
-	if err != nil {
-		return err
+	if err := s.r.Connect(); err != nil {
+		return nil, err
 	}
 
 	s.r.OnMediaStatusUpdate(s.updateMediaStatus)
 	s.getMediaStatus()
 
-	return nil
+	return s, nil
 }
 
 func (s *Sender) updateMediaStatus(ms *MediaStatus) {
@@ -154,7 +148,7 @@ func (s *Sender) Load(mediaURL *url.URL, mediaMetadata omnicast.MediaMetadata) e
 
 // MediaURL returns the URL of current loaded media.
 func (s *Sender) MediaURL() *url.URL {
-	if s.r.Application() == nil || s.mediaInfo == nil {
+	if s.IsIdle() {
 		return nil
 	}
 
@@ -176,7 +170,7 @@ func (s *Sender) MediaURL() *url.URL {
 
 // MediaMetadata returns the metadata of current loaded media.
 func (s *Sender) MediaMetadata() omnicast.MediaMetadata {
-	if s.mediaInfo == nil {
+	if s.IsIdle() {
 		return nil
 	}
 
@@ -185,7 +179,7 @@ func (s *Sender) MediaMetadata() omnicast.MediaMetadata {
 
 // MediaDuration returns the duration of current loaded media.
 func (s *Sender) MediaDuration() time.Duration {
-	if s.mediaInfo == nil {
+	if s.IsIdle() {
 		return time.Duration(0)
 	}
 
@@ -195,7 +189,15 @@ func (s *Sender) MediaDuration() time.Duration {
 // IsIdle returns true if the recevier device does not have an receiver
 // app running or have media playback stopped.
 func (s *Sender) IsIdle() bool {
-	if s.r.Application() == nil || s.r.Application().IsIdleScreen || s.mediaInfo == nil {
+	if s.r.Application() == nil {
+		log.Println("gcast: connection lost, reconnecting...")
+		if err := s.r.Connect(); err != nil {
+			log.Println(err)
+			return true
+		}
+	}
+
+	if s.r.Application().IsIdleScreen || s.mediaInfo == nil {
 		return true
 	}
 
@@ -204,17 +206,29 @@ func (s *Sender) IsIdle() bool {
 
 // IsPlaying returns true if the recevier is actively playing content.
 func (s *Sender) IsPlaying() bool {
+	if s.IsIdle() {
+		return false
+	}
+
 	return s.playbackState == "PLAYING"
 }
 
 // IsPaused returns true if playback is paused due to user request.
 func (s *Sender) IsPaused() bool {
+	if s.IsIdle() {
+		return false
+	}
+
 	return s.playbackState == "PAUSED"
 }
 
 // IsBuffering returns true if playback is effectively paused due to
 // buffer underflow.
 func (s *Sender) IsBuffering() bool {
+	if s.IsIdle() {
+		return false
+	}
+
 	return s.playbackState == "BUFFERING"
 }
 
@@ -226,15 +240,13 @@ func (s *Sender) PlaybackPosition() time.Duration {
 		return time.Duration(0)
 	}
 
-	pos := s.playbackPosition
-
-	t := time.Since(s.lastMediaStatus).Seconds()
-	if t > 30 {
+	if t := time.Since(s.lastMediaStatus).Seconds(); t > 30 {
 		s.getMediaStatus()
-		return s.PlaybackPosition()
 	}
 
+	pos := s.playbackPosition
 	if s.IsPlaying() {
+		t := time.Since(s.lastMediaStatus).Seconds()
 		pos = pos + t*float64(s.PlaybackRate())
 	}
 
