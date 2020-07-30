@@ -78,6 +78,9 @@ type Receiver struct {
 	rsListeners []func(*ReceiverStatus)
 	msSubID     int
 	msListeners []func(*MediaStatus)
+
+	app *ReceiverApplication
+	vol *ReceiverVolume
 }
 
 // NewReceiver returns a new Receiver instance.
@@ -103,24 +106,41 @@ func (r *Receiver) Connect() error {
 		return err
 	}
 
-	msSubCh := make(chan *castv2.Msg)
-	r.msSubID, err = r.ch.Subscribe(castv2.TypeMediaStatus, msSubCh)
-	if err != nil {
-		return err
-	}
-
 	go func() {
 		for msg := range rsSubCh {
-			rs, err := parseReceiverStatus(msg)
-			if err != nil {
+			rs := new(ReceiverStatus)
+			if err := json.Unmarshal([]byte(msg.Payload), &rs); err != nil {
 				continue
 			}
+
+			if apps := rs.Status.Applications; len(apps) > 0 {
+				r.app = apps[0]
+			} else {
+				r.app = nil
+			}
+
+			r.vol = rs.Status.Volume
 
 			for _, f := range r.rsListeners {
 				f(rs)
 			}
 		}
 	}()
+
+	// Request receiver status for the initial state
+	r.ch.Request(
+		castv2.PlatformSenderID,
+		castv2.PlatformReceiverID,
+		castv2.NamespaceReceiver,
+		castv2.NewRequest(castv2.TypeGetStatus),
+		rsSubCh,
+	)
+
+	msSubCh := make(chan *castv2.Msg)
+	r.msSubID, err = r.ch.Subscribe(castv2.TypeMediaStatus, msSubCh)
+	if err != nil {
+		return err
+	}
 
 	go func() {
 		for msg := range msSubCh {
@@ -138,31 +158,14 @@ func (r *Receiver) Connect() error {
 	return nil
 }
 
-func parseReceiverStatus(msg *castv2.Msg) (*ReceiverStatus, error) {
-	var rs ReceiverStatus
-	if err := json.Unmarshal([]byte(msg.Payload), &rs); err != nil {
-		return nil, err
-	}
-
-	return &rs, nil
+// Application returns the current running receiver application, if any.
+func (r *Receiver) Application() *ReceiverApplication {
+	return r.app
 }
 
-// GetStatus returns the devices status of the receiver.
-func (r *Receiver) GetStatus() (*ReceiverStatus, error) {
-	respCh := make(chan *castv2.Msg)
-	err := r.ch.Request(
-		castv2.PlatformSenderID,
-		castv2.PlatformReceiverID,
-		castv2.NamespaceReceiver,
-		castv2.NewRequest(castv2.TypeGetStatus),
-		respCh,
-	)
-	if err != nil {
-		return nil, err
-	}
-	resp := <-respCh
-
-	return parseReceiverStatus(resp)
+// Volume returns the receiver volume, if known.
+func (r *Receiver) Volume() *ReceiverVolume {
+	return r.vol
 }
 
 // OnStatusUpdate registers an event listener for status updates.
@@ -180,11 +183,11 @@ func parseMediaStatus(msg *castv2.Msg) (*MediaStatus, error) {
 }
 
 // GetMediaStatus retrieves the media status for all media sessions.
-func (r *Receiver) GetMediaStatus(senderID, sessionID string) (*MediaStatus, error) {
+func (r *Receiver) GetMediaStatus(senderID string) (*MediaStatus, error) {
 	respCh := make(chan *castv2.Msg)
 	err := r.ch.Request(
 		senderID,
-		sessionID,
+		r.app.SessionID,
 		castv2.NamespaceMedia,
 		castv2.NewRequest(castv2.TypeGetStatus),
 		respCh,
@@ -244,7 +247,7 @@ func (r *Receiver) SetVolume(vol *ReceiverVolume) error {
 // Load loads new content into the media player.
 //
 // Ref: https://developers.google.com/cast/docs/reference/messages#Load
-func (r *Receiver) Load(senderID, sessionID string, media *MediaInformation) error {
+func (r *Receiver) Load(senderID string, media *MediaInformation) error {
 	req := &struct {
 		castv2.Header
 		Media *MediaInformation `json:"media"`
@@ -255,7 +258,7 @@ func (r *Receiver) Load(senderID, sessionID string, media *MediaInformation) err
 
 	return r.ch.Request(
 		senderID,
-		sessionID,
+		r.app.SessionID,
 		castv2.NamespaceMedia,
 		req,
 		nil,
@@ -266,7 +269,7 @@ func (r *Receiver) Load(senderID, sessionID string, media *MediaInformation) err
 // playback position.
 //
 // https://developers.google.com/cast/docs/reference/messages#Play
-func (r *Receiver) Play(senderID, sessionID string, mediaSessionID int) error {
+func (r *Receiver) Play(senderID string, mediaSessionID int) error {
 	req := &struct {
 		castv2.Header
 		MediaSessionID int `json:"mediaSessionId"`
@@ -277,7 +280,7 @@ func (r *Receiver) Play(senderID, sessionID string, mediaSessionID int) error {
 
 	return r.ch.Request(
 		senderID,
-		sessionID,
+		r.app.SessionID,
 		castv2.NamespaceMedia,
 		req,
 		nil,
@@ -287,7 +290,7 @@ func (r *Receiver) Play(senderID, sessionID string, mediaSessionID int) error {
 // Pause pauses playback of the current content.
 //
 // https://developers.google.com/cast/docs/reference/messages#Pause
-func (r *Receiver) Pause(senderID, sessionID string, mediaSessionID int) error {
+func (r *Receiver) Pause(senderID string, mediaSessionID int) error {
 	req := &struct {
 		castv2.Header
 		MediaSessionID int `json:"mediaSessionId"`
@@ -298,7 +301,7 @@ func (r *Receiver) Pause(senderID, sessionID string, mediaSessionID int) error {
 
 	return r.ch.Request(
 		senderID,
-		sessionID,
+		r.app.SessionID,
 		castv2.NamespaceMedia,
 		req,
 		nil,
@@ -308,7 +311,7 @@ func (r *Receiver) Pause(senderID, sessionID string, mediaSessionID int) error {
 // Stop stops the playback and unload the current content
 //
 // https://developers.google.com/cast/docs/reference/messages#Stop
-func (r *Receiver) Stop(senderID, sessionID string, mediaSessionID int) error {
+func (r *Receiver) Stop(senderID string, mediaSessionID int) error {
 	req := &struct {
 		castv2.Header
 		MediaSessionID int `json:"mediaSessionId"`
@@ -319,7 +322,7 @@ func (r *Receiver) Stop(senderID, sessionID string, mediaSessionID int) error {
 
 	return r.ch.Request(
 		senderID,
-		sessionID,
+		r.app.SessionID,
 		castv2.NamespaceMedia,
 		req,
 		nil,
@@ -328,7 +331,7 @@ func (r *Receiver) Stop(senderID, sessionID string, mediaSessionID int) error {
 
 // Seek sets the current playback position to pos, which is the number
 // of seconds since beginning of content
-func (r *Receiver) Seek(senderID, sessionID string, mediaSessionID int, pos float64) error {
+func (r *Receiver) Seek(senderID string, mediaSessionID int, pos float64) error {
 	req := &struct {
 		castv2.Header
 		MediaSessionID int     `json:"mediaSessionId"`
@@ -341,7 +344,7 @@ func (r *Receiver) Seek(senderID, sessionID string, mediaSessionID int, pos floa
 
 	return r.ch.Request(
 		senderID,
-		sessionID,
+		r.app.SessionID,
 		castv2.NamespaceMedia,
 		req,
 		nil,

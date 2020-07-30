@@ -22,9 +22,6 @@ var (
 type Sender struct {
 	ID string
 
-	ReceiverApp    *ReceiverApplication
-	ReceiverVolume *ReceiverVolume
-
 	r *Receiver
 
 	lastMediaStatus  time.Time
@@ -49,36 +46,8 @@ func (s *Sender) ConnectTo(raddr string) error {
 		return err
 	}
 
-	s.r.OnStatusUpdate(s.updateReceiverStatus)
 	s.r.OnMediaStatusUpdate(s.updateMediaStatus)
-
-	s.getReceiverStatus()
 	s.getMediaStatus()
-
-	return nil
-}
-
-func (s *Sender) updateReceiverStatus(rs *ReceiverStatus) {
-	if rs == nil {
-		return
-	}
-
-	if apps := rs.Status.Applications; len(apps) > 0 {
-		s.ReceiverApp = apps[0]
-	} else {
-		s.ReceiverApp = nil
-	}
-
-	s.ReceiverVolume = rs.Status.Volume
-}
-
-func (s *Sender) getReceiverStatus() error {
-	rs, err := s.r.GetStatus()
-	if err != nil {
-		return err
-	}
-
-	s.updateReceiverStatus(rs)
 
 	return nil
 }
@@ -103,11 +72,11 @@ func (s *Sender) updateMediaStatus(ms *MediaStatus) {
 }
 
 func (s *Sender) getMediaStatus() error {
-	if s.ReceiverApp == nil || s.ReceiverApp.IsIdleScreen {
+	if s.r.Application() == nil || s.r.Application().IsIdleScreen {
 		return ErrReceiverNotReady
 	}
 
-	ms, err := s.r.GetMediaStatus(s.ID, s.ReceiverApp.SessionID)
+	ms, err := s.r.GetMediaStatus(s.ID)
 	if err != nil {
 		return err
 	}
@@ -121,12 +90,19 @@ func (s *Sender) getMediaStatus() error {
 }
 
 func (s *Sender) ensureAppLaunched(appID string) error {
+	if s.r.Application() == nil || s.r.Application().AppID != DefaultReceiverAppID {
+		err := s.r.Launch(DefaultReceiverAppID)
+		if err != nil {
+			return err
+		}
+	}
+
 	for {
 		select {
 		case <-time.After(2 * time.Second):
 			return ErrReceiverNotReady
 		default:
-			if s.ReceiverApp != nil && s.ReceiverApp.AppID == DefaultReceiverAppID {
+			if s.r.Application() != nil && s.r.Application().AppID == DefaultReceiverAppID {
 				return nil
 			}
 		}
@@ -145,12 +121,6 @@ func (s *Sender) Load(mediaURL *url.URL, mediaMetadata omnicast.MediaMetadata) e
 		contentType = "application/octet-stream"
 	}
 
-	if s.ReceiverApp == nil || s.ReceiverApp.AppID != DefaultReceiverAppID {
-		err := s.r.Launch(DefaultReceiverAppID)
-		if err != nil {
-			return err
-		}
-	}
 	if err := s.ensureAppLaunched(DefaultReceiverAppID); err != nil {
 		return err
 	}
@@ -179,16 +149,16 @@ func (s *Sender) Load(mediaURL *url.URL, mediaMetadata omnicast.MediaMetadata) e
 		StreamType:  "BUFFERED",
 	}
 
-	return s.r.Load(s.ID, s.ReceiverApp.SessionID, mediaInfo)
+	return s.r.Load(s.ID, mediaInfo)
 }
 
 // MediaURL returns the URL of current loaded media.
 func (s *Sender) MediaURL() *url.URL {
-	if s.ReceiverApp == nil || s.mediaInfo == nil {
+	if s.r.Application() == nil || s.mediaInfo == nil {
 		return nil
 	}
 
-	switch s.ReceiverApp.AppID {
+	switch s.r.Application().AppID {
 	case YouTubeReceiverAppID:
 		return &url.URL{
 			Scheme: "https",
@@ -225,7 +195,7 @@ func (s *Sender) MediaDuration() time.Duration {
 // IsIdle returns true if the recevier device does not have an receiver
 // app running or have media playback stopped.
 func (s *Sender) IsIdle() bool {
-	if s.ReceiverApp == nil || s.ReceiverApp.IsIdleScreen {
+	if s.r.Application() == nil || s.r.Application().IsIdleScreen || s.mediaInfo == nil {
 		return true
 	}
 
@@ -279,56 +249,56 @@ func (s *Sender) PlaybackRate() float32 {
 // Play begins playback of the loaded media content from the current
 // playback position.
 func (s *Sender) Play() {
-	if s.ReceiverApp == nil || s.mediaInfo == nil {
+	if s.r.Application() == nil || s.mediaInfo == nil {
 		return
 	}
 
-	s.r.Play(s.ID, s.ReceiverApp.SessionID, s.mediaSessionID)
+	s.r.Play(s.ID, s.mediaSessionID)
 }
 
 // Pause pauses playback of the current content.
 func (s *Sender) Pause() {
-	if s.ReceiverApp == nil || s.mediaInfo == nil {
+	if s.r.Application() == nil || s.mediaInfo == nil {
 		return
 	}
 
-	s.r.Pause(s.ID, s.ReceiverApp.SessionID, s.mediaSessionID)
+	s.r.Pause(s.ID, s.mediaSessionID)
 }
 
 // Stop stops the playback and unload the current content
 func (s *Sender) Stop() {
-	if s.ReceiverApp == nil || s.mediaInfo == nil {
+	if s.r.Application() == nil || s.mediaInfo == nil {
 		return
 	}
 
-	s.r.Stop(s.ID, s.ReceiverApp.SessionID, s.mediaSessionID)
+	s.r.Stop(s.ID, s.mediaSessionID)
 }
 
 // SeekTo sets the current playback position to pos,
 func (s *Sender) SeekTo(pos time.Duration) {
-	if s.ReceiverApp == nil || s.mediaInfo == nil {
+	if s.r.Application() == nil || s.mediaInfo == nil {
 		return
 	}
 
-	s.r.Seek(s.ID, s.ReceiverApp.SessionID, s.mediaSessionID, pos.Seconds())
+	s.r.Seek(s.ID, s.mediaSessionID, pos.Seconds())
 }
 
 // VolumeLevel returns receiver volume as a number between 0.0 and 1.0.
 func (s *Sender) VolumeLevel() float64 {
-	if s.ReceiverVolume == nil {
+	if s.r.Volume() == nil {
 		return 0.0
 	}
 
-	return s.ReceiverVolume.Level
+	return s.r.Volume().Level
 }
 
 // IsMuted returns true if the receiver is muted.
 func (s *Sender) IsMuted() bool {
-	if s.ReceiverVolume == nil {
+	if s.r.Volume() == nil {
 		return false
 	}
 
-	return s.ReceiverVolume.Muted
+	return s.r.Volume().Muted
 }
 
 // SetVolumeLevel sets receiver volume level.
