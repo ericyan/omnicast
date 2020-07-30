@@ -49,7 +49,10 @@ func AVTransport(player omnicast.MediaPlayer) *upnp.Service {
 			}
 		}
 
-		player.Load(mediaURL, mediaMetadata)
+		if err := player.Load(mediaURL, mediaMetadata); err != nil {
+			log.Println(err)
+			resp.Error = soap.ErrActionFailed
+		}
 	})
 
 	svc.RegisterAction("GetMediaInfo", func(req *soap.Request, resp *soap.Response) {

@@ -76,8 +76,6 @@ func (dev *Device) ServiceURNs() []string {
 }
 
 func (dev *Device) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	log.Printf("[DEBUG] %s %s from %s\n", r.Method, r.URL.Path, r.RemoteAddr)
-
 	if r.URL.Path == "/" {
 		w.Header().Add("Content-Type", "application/xml")
 		dev.writeDevice(w)
@@ -95,6 +93,8 @@ func (dev *Device) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if r.Method == http.MethodGet {
+			log.Printf("[DEBUG] %s %s from %s\n", r.Method, r.URL.Path, r.RemoteAddr)
+
 			scpd, err := fs.New()
 			if err != nil {
 				log.Println(err)
@@ -120,6 +120,8 @@ func (dev *Device) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				log.Println(err)
 				return
 			}
+
+			log.Printf("[DEBUG] %s %v from %s\n", req.Action.Name, req.Args, r.RemoteAddr)
 
 			err = svc.HandleRequest(req).WriteTo(w)
 			if err != nil {
