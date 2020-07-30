@@ -87,7 +87,7 @@ func NewReceiver(addr string) *Receiver {
 
 // Connect makes a connection to the receiver.
 func (r *Receiver) Connect() error {
-	if r.ch != nil {
+	if r.ch != nil && !r.ch.IsClosed() {
 		return nil
 	}
 
