@@ -61,7 +61,8 @@ type Channel struct {
 
 // Dial connects to the remote receiver and returns a new Channel.
 func Dial(addr string) (*Channel, error) {
-	conn, err := tls.Dial("tcp", addr, &tls.Config{InsecureSkipVerify: true})
+	dialer := &net.Dialer{Timeout: time.Duration(2 * time.Second)}
+	conn, err := tls.DialWithDialer(dialer, "tcp", addr, &tls.Config{InsecureSkipVerify: true})
 	if err != nil {
 		return nil, err
 	}
@@ -187,7 +188,7 @@ func (c *Channel) listen() {
 
 func (c *Channel) keepalive() {
 	for range c.heartbeat.C {
-		if time.Now().Sub(c.lastMsgAt).Seconds() > 10 {
+		if time.Since(c.lastMsgAt).Seconds() > 10 {
 			log.Println("gcast: timeout, closing channel...")
 			c.Close()
 			return
