@@ -49,15 +49,14 @@ func (vc vconn) NewPongMsg() *Msg {
 // to a new source and destination ID pair, a virtual connection will be
 // automatically established and keeped alive.
 type Channel struct {
-	conn        *tls.Conn
-	done        chan struct{}
-	vconns      map[vconn]struct{}
-	heartbeat   *time.Ticker
-	lastMsgAt   time.Time
-	lastReqID   uint64
-	pendingReqs map[uint64]chan *Msg
-	// FIXME: make this thread-safe
-	subscriptions map[string][]chan *Msg
+	conn          *tls.Conn
+	done          chan struct{}
+	vconns        map[vconn]struct{}
+	heartbeat     *time.Ticker
+	lastMsgAt     time.Time
+	lastReqID     uint64
+	pendingReqs   map[uint64]chan *Msg
+	subscriptions map[uint64]chan *Msg
 }
 
 // Dial connects to the remote receiver and returns a new Channel.
@@ -75,7 +74,7 @@ func Dial(addr string) (*Channel, error) {
 		lastMsgAt:     time.Unix(0, 0),
 		lastReqID:     0,
 		pendingReqs:   make(map[uint64]chan *Msg),
-		subscriptions: make(map[string][]chan *Msg),
+		subscriptions: make(map[uint64]chan *Msg),
 	}
 
 	go c.listen()
@@ -168,11 +167,9 @@ func (c *Channel) listen() {
 			log.Println("[DEBUG] castv2:", msg)
 
 			if msg.DestinationID == "*" {
-				if subs, ok := c.subscriptions[p.Type]; ok {
-					for _, sub := range subs {
-						if sub != nil {
-							sub <- msg
-						}
+				for _, sub := range c.subscriptions {
+					if sub != nil {
+						sub <- msg
 					}
 				}
 
@@ -272,32 +269,25 @@ func (c *Channel) Request(srcID, descID, namespace string, req Request, respCh c
 	return c.writeMsg(vc.NewMsg(namespace, string(payload)))
 }
 
-// Subscribe registers a subscription to a particular type of broadcast
-// messages. It returns an ID for identifying the subscription (along
-// with the message type) when unsubscribing.
-func (c *Channel) Subscribe(msgType string, subCh chan *Msg) (int, error) {
-	if msgType != TypeReceiverStatus && msgType != TypeMediaStatus {
-		return 0, errors.New("message type unavailable for subscribe")
-	}
+// Subscribe registers a subscription to broadcast messages. It returns
+// an identifier for identifying the subscription when unsubscribing.
+func (c *Channel) Subscribe(ch chan *Msg) (uint64, error) {
+	id := uint64(len(c.subscriptions) + 1)
+	c.subscriptions[id] = ch
 
-	if _, ok := c.subscriptions[msgType]; !ok {
-		c.subscriptions[msgType] = make([]chan *Msg, 0)
-	}
-	c.subscriptions[msgType] = append(c.subscriptions[msgType], subCh)
-
-	return len(c.subscriptions[msgType]), nil
+	return id, nil
 }
 
 // Unsubscribe unregisters the subscription and closes the subscription
 // channel.
-func (c *Channel) Unsubscribe(msgType string, subID int) error {
-	if subs, ok := c.subscriptions[msgType]; ok {
-		if len(subs) > subID && subs[subID] != nil {
-			subs[subID] = nil
-			return nil
-
-		}
+func (c *Channel) Unsubscribe(subID uint64) error {
+	ch, ok := c.subscriptions[subID]
+	if !ok {
+		return errors.New("subscription not found")
 	}
 
-	return errors.New("subscription not found")
+	close(ch)
+	delete(c.subscriptions, subID)
+
+	return nil
 }

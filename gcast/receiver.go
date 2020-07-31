@@ -2,6 +2,8 @@ package gcast
 
 import (
 	"encoding/json"
+	"log"
+	"time"
 
 	"github.com/ericyan/omnicast/gcast/internal/castv2"
 )
@@ -52,20 +54,23 @@ type MediaInformation struct {
 	Duration    float64       `json:"duration,omitempty"`
 }
 
+// MediaSession represents the current status of a single session.
+type MediaSession struct {
+	MediaSessionID         int               `json:"mediaSessionId"`
+	Media                  *MediaInformation `json:"media,omitempty"`
+	PlaybackRate           float32           `json:"playbackRate"`
+	PlayerState            string            `json:"playerState"`
+	IdleReason             string            `json:"idleReason,omitempty"`
+	CurrentTime            float64           `json:"currentTime"`
+	SupportedMediaCommands int               `json:"supportedMediaCommands"`
+}
+
 // MediaStatus represents the current status of the media artifact with
 // respect to the session.
 //
 // https://developers.google.com/cast/docs/reference/messages#MediaStatus
 type MediaStatus struct {
-	Status []struct {
-		MediaSessionID         int               `json:"mediaSessionId"`
-		Media                  *MediaInformation `json:"media,omitempty"`
-		PlaybackRate           float32           `json:"playbackRate"`
-		PlayerState            string            `json:"playerState"`
-		IdleReason             string            `json:"idleReason,omitempty"`
-		CurrentTime            float64           `json:"currentTime"`
-		SupportedMediaCommands int               `json:"supportedMediaCommands"`
-	} `json:"status"`
+	Status []*MediaSession `json:"status"`
 }
 
 // Receiver represents a Google Cast device.
@@ -74,53 +79,78 @@ type Receiver struct {
 
 	ch *castv2.Channel
 
-	rsSubCh     chan *castv2.Msg
-	msSubCh     chan *castv2.Msg
-	msListeners []func(*MediaStatus)
-
 	app *ReceiverApplication
 	vol *ReceiverVolume
+
+	events     chan *castv2.Msg
+	session    *MediaSession
+	lastUpdate time.Time
 }
 
 // NewReceiver returns a new Receiver instance.
 func NewReceiver(addr string) *Receiver {
-	r := &Receiver{
-		Addr:    addr,
-		rsSubCh: make(chan *castv2.Msg),
-		msSubCh: make(chan *castv2.Msg),
-	}
+	r := &Receiver{Addr: addr}
 
+	r.events = make(chan *castv2.Msg)
 	go func() {
-		for msg := range r.rsSubCh {
-			rs := new(ReceiverStatus)
-			if err := json.Unmarshal([]byte(msg.Payload), &rs); err != nil {
+		for msg := range r.events {
+			var h castv2.Header
+			if err := json.Unmarshal([]byte(msg.Payload), &h); err != nil {
 				continue
 			}
 
-			if apps := rs.Status.Applications; len(apps) > 0 {
-				r.app = apps[0]
-			} else {
-				r.app = nil
-			}
-
-			r.vol = rs.Status.Volume
-		}
-	}()
-
-	go func() {
-		for msg := range r.msSubCh {
-			ms, err := parseMediaStatus(msg)
-			if err != nil {
-				continue
-			}
-
-			for _, f := range r.msListeners {
-				f(ms)
+			switch h.Type {
+			case castv2.TypeReceiverStatus:
+				r.updateReceiverStatus(msg)
+			case castv2.TypeMediaStatus:
+				r.updateMediaStatus(msg)
 			}
 		}
 	}()
 
 	return r
+}
+
+func (r *Receiver) updateReceiverStatus(msg *castv2.Msg) error {
+	rs := new(ReceiverStatus)
+	if err := json.Unmarshal([]byte(msg.Payload), &rs); err != nil {
+		return err
+	}
+
+	var app *ReceiverApplication
+	if apps := rs.Status.Applications; len(apps) > 0 {
+		app = apps[0]
+	} else {
+		app = nil
+	}
+
+	if r.app != app {
+		r.app = app
+		r.session = nil
+	}
+
+	r.vol = rs.Status.Volume
+
+	return nil
+}
+
+func (r *Receiver) updateMediaStatus(msg *castv2.Msg) error {
+	ms := new(MediaStatus)
+	if err := json.Unmarshal([]byte(msg.Payload), &ms); err != nil {
+		return err
+	}
+
+	r.lastUpdate = time.Now()
+	for _, s := range ms.Status {
+		// The media element will only be returned if it has changed.
+		if s.Media == nil && r.session != nil {
+			s.Media = r.session.Media
+		}
+
+		r.session = s
+	}
+
+	return nil
 }
 
 // Connect makes a connection to the receiver.
@@ -135,23 +165,22 @@ func (r *Receiver) Connect() error {
 	}
 	r.ch = ch
 
-	if _, err := r.ch.Subscribe(castv2.TypeReceiverStatus, r.rsSubCh); err != nil {
-		return err
-	}
-	if _, err := r.ch.Subscribe(castv2.TypeMediaStatus, r.msSubCh); err != nil {
-		return err
-	}
+	r.ch.Subscribe(r.events)
 
 	// Request receiver status to update state
-	r.ch.Request(
+	respCh := make(chan *castv2.Msg)
+	err = r.ch.Request(
 		castv2.PlatformSenderID,
 		castv2.PlatformReceiverID,
 		castv2.NamespaceReceiver,
 		castv2.NewRequest(castv2.TypeGetStatus),
-		r.rsSubCh,
+		respCh,
 	)
+	if err != nil {
+		return err
+	}
 
-	return nil
+	return r.updateReceiverStatus(<-respCh)
 }
 
 // IsConnected returns true if there is an active connection to the
@@ -182,37 +211,38 @@ func (r *Receiver) Volume() *ReceiverVolume {
 	return r.vol
 }
 
-func parseMediaStatus(msg *castv2.Msg) (*MediaStatus, error) {
-	var ms MediaStatus
-	if err := json.Unmarshal([]byte(msg.Payload), &ms); err != nil {
-		return nil, err
+// GetSession returns the last known status of the media session.
+func (r *Receiver) Session(senderID string) (*MediaSession, time.Time) {
+	if !r.IsConnected() {
+		log.Println("gcast: connection lost, reconnecting...")
+		if err := r.Connect(); err != nil {
+			log.Println("gcast: failed to reconnect.", err)
+			return nil, r.lastUpdate
+		}
 	}
 
-	return &ms, nil
-}
-
-// GetMediaStatus retrieves the media status for all media sessions.
-func (r *Receiver) GetMediaStatus(senderID string) (*MediaStatus, error) {
-	respCh := make(chan *castv2.Msg)
-	err := r.ch.Request(
-		senderID,
-		r.app.SessionID,
-		castv2.NamespaceMedia,
-		castv2.NewRequest(castv2.TypeGetStatus),
-		respCh,
-	)
-	if err != nil {
-		return nil, err
+	if r.app == nil || r.app.IsIdleScreen {
+		return nil, r.lastUpdate
 	}
-	resp := <-respCh
 
-	return parseMediaStatus(resp)
-}
+	if r.session == nil || time.Since(r.lastUpdate).Seconds() > 30 {
+		respCh := make(chan *castv2.Msg)
+		err := r.ch.Request(
+			senderID,
+			r.app.SessionID,
+			castv2.NamespaceMedia,
+			castv2.NewRequest(castv2.TypeGetStatus),
+			respCh,
+		)
+		if err != nil {
+			log.Println("gcast: failed to update media status.", err)
+			return nil, r.lastUpdate
+		}
 
-// OnMediaStatusUpdate registers an event listener for media status
-// updates.
-func (r *Receiver) OnMediaStatusUpdate(listener func(*MediaStatus)) {
-	r.msListeners = append(r.msListeners, listener)
+		r.updateMediaStatus(<-respCh)
+	}
+
+	return r.session, r.lastUpdate
 }
 
 // Launch starts an new receiver application.

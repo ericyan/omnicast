@@ -2,7 +2,6 @@ package gcast
 
 import (
 	"errors"
-	"log"
 	"mime"
 	"net/url"
 	"path/filepath"
@@ -22,14 +21,8 @@ var (
 // when communicating with the receiver.
 type Sender struct {
 	ID string
-	r  *Receiver
 
-	lastMediaStatus  time.Time
-	mediaSessionID   int
-	mediaInfo        *MediaInformation
-	playbackState    string
-	playbackPosition float64
-	playbackRate     float32
+	r *Receiver
 }
 
 // NewSender returns a new Sender and connects to the Receiver.
@@ -40,47 +33,7 @@ func NewSender(id string, r *Receiver) (*Sender, error) {
 		return nil, err
 	}
 
-	s.r.OnMediaStatusUpdate(s.updateMediaStatus)
-	s.getMediaStatus()
-
 	return s, nil
-}
-
-func (s *Sender) updateMediaStatus(ms *MediaStatus) {
-	if ms == nil || len(ms.Status) == 0 {
-		return
-	}
-
-	sess := ms.Status[0]
-
-	s.lastMediaStatus = time.Now()
-	s.mediaSessionID = sess.MediaSessionID
-	// The media element will only be returned if it has changed.
-	if sess.Media != nil {
-		s.mediaInfo = sess.Media
-	}
-
-	s.playbackState = sess.PlayerState
-	s.playbackPosition = sess.CurrentTime
-	s.playbackRate = sess.PlaybackRate
-}
-
-func (s *Sender) getMediaStatus() error {
-	if s.r.Application() == nil || s.r.Application().IsIdleScreen {
-		return ErrReceiverNotReady
-	}
-
-	ms, err := s.r.GetMediaStatus(s.ID)
-	if err != nil {
-		return err
-	}
-	if len(ms.Status) == 0 {
-		return ErrReceiverNotReady
-	}
-
-	s.updateMediaStatus(ms)
-
-	return nil
 }
 
 func (s *Sender) ensureAppLaunched(appID string) error {
@@ -152,15 +105,20 @@ func (s *Sender) MediaURL() *url.URL {
 		return nil
 	}
 
+	ms, _ := s.r.Session(s.ID)
+	if ms == nil {
+		return nil
+	}
+
 	switch s.r.Application().AppID {
 	case YouTubeReceiverAppID:
 		return &url.URL{
 			Scheme: "https",
 			Host:   "youtu.be",
-			Path:   s.mediaInfo.ContentID,
+			Path:   ms.Media.ContentID,
 		}
 	default:
-		u, err := url.Parse(s.mediaInfo.ContentID)
+		u, err := url.Parse(ms.Media.ContentID)
 		if err != nil {
 			return nil
 		}
@@ -170,129 +128,123 @@ func (s *Sender) MediaURL() *url.URL {
 
 // MediaMetadata returns the metadata of current loaded media.
 func (s *Sender) MediaMetadata() omnicast.MediaMetadata {
-	if s.IsIdle() {
+	ms, _ := s.r.Session(s.ID)
+	if ms == nil {
 		return nil
 	}
 
-	return s.mediaInfo.Metadata
+	return ms.Media.Metadata
 }
 
 // MediaDuration returns the duration of current loaded media.
 func (s *Sender) MediaDuration() time.Duration {
-	if s.IsIdle() {
+	ms, _ := s.r.Session(s.ID)
+	if ms == nil {
 		return time.Duration(0)
 	}
 
-	return time.Duration(s.mediaInfo.Duration * float64(time.Second))
+	return time.Duration(ms.Media.Duration * float64(time.Second))
+}
+
+// PlayerState return the current playback state.
+func (s *Sender) PlayerState() string {
+	ms, _ := s.r.Session(s.ID)
+	if ms == nil {
+		return "IDLE"
+	}
+
+	return ms.PlayerState
 }
 
 // IsIdle returns true if the recevier device does not have an receiver
 // app running or have media playback stopped.
 func (s *Sender) IsIdle() bool {
-	if !s.r.IsConnected() {
-		log.Println("gcast: connection lost, reconnecting...")
-		if err := s.r.Connect(); err != nil {
-			log.Println(err)
-			return true
-		}
-	}
-
-	if s.r.Application() == nil || s.r.Application().IsIdleScreen || s.mediaInfo == nil {
-		return true
-	}
-
-	return s.playbackState == "IDLE"
+	return s.PlayerState() == "IDLE"
 }
 
 // IsPlaying returns true if the recevier is actively playing content.
 func (s *Sender) IsPlaying() bool {
-	if s.IsIdle() {
-		return false
-	}
-
-	return s.playbackState == "PLAYING"
+	return s.PlayerState() == "PLAYING"
 }
 
 // IsPaused returns true if playback is paused due to user request.
 func (s *Sender) IsPaused() bool {
-	if s.IsIdle() {
-		return false
-	}
-
-	return s.playbackState == "PAUSED"
+	return s.PlayerState() == "PAUSED"
 }
 
 // IsBuffering returns true if playback is effectively paused due to
 // buffer underflow.
 func (s *Sender) IsBuffering() bool {
-	if s.IsIdle() {
-		return false
-	}
-
-	return s.playbackState == "BUFFERING"
+	return s.PlayerState() == "BUFFERING"
 }
 
 // PlaybackPosition returns the current position of media playback from
 // the beginning of media content. For live streams, it returns the time
 // since playback started.
 func (s *Sender) PlaybackPosition() time.Duration {
-	if s.IsIdle() {
+	ms, ts := s.r.Session(s.ID)
+	if ms == nil {
 		return time.Duration(0)
 	}
 
-	if t := time.Since(s.lastMediaStatus).Seconds(); t > 30 {
-		s.getMediaStatus()
+	pos := ms.CurrentTime * float64(time.Second)
+	if ms.PlayerState == "PLAYING" {
+		t := time.Since(ts).Seconds()
+		pos += t * float64(ms.PlaybackRate)
 	}
 
-	pos := s.playbackPosition
-	if s.IsPlaying() {
-		t := time.Since(s.lastMediaStatus).Seconds()
-		pos = pos + t*float64(s.PlaybackRate())
-	}
-
-	return time.Duration(pos * float64(time.Second))
+	return time.Duration(pos)
 }
 
 // PlaybackRate returns the ratio of speed that media is played at.
 func (s *Sender) PlaybackRate() float32 {
-	return s.playbackRate
+	ms, _ := s.r.Session(s.ID)
+	if ms == nil {
+		return 0
+	}
+
+	return ms.PlaybackRate
 }
 
 // Play begins playback of the loaded media content from the current
 // playback position.
 func (s *Sender) Play() {
-	if s.r.Application() == nil || s.mediaInfo == nil {
+	ms, _ := s.r.Session(s.ID)
+	if ms == nil {
 		return
 	}
 
-	s.r.Play(s.ID, s.mediaSessionID)
+	s.r.Play(s.ID, ms.MediaSessionID)
 }
 
 // Pause pauses playback of the current content.
 func (s *Sender) Pause() {
-	if s.r.Application() == nil || s.mediaInfo == nil {
+	ms, _ := s.r.Session(s.ID)
+	if ms == nil {
 		return
 	}
 
-	s.r.Pause(s.ID, s.mediaSessionID)
+	s.r.Pause(s.ID, ms.MediaSessionID)
 }
 
 // Stop stops the playback and unload the current content
 func (s *Sender) Stop() {
-	if s.r.Application() == nil || s.mediaInfo == nil {
+	ms, _ := s.r.Session(s.ID)
+	if ms == nil {
 		return
 	}
 
-	s.r.Stop(s.ID, s.mediaSessionID)
+	s.r.Stop(s.ID, ms.MediaSessionID)
 }
 
 // SeekTo sets the current playback position to pos,
 func (s *Sender) SeekTo(pos time.Duration) {
-	if s.r.Application() == nil || s.mediaInfo == nil {
+	ms, _ := s.r.Session(s.ID)
+	if ms == nil {
 		return
 	}
 
-	s.r.Seek(s.ID, s.mediaSessionID, pos.Seconds())
+	s.r.Seek(s.ID, ms.MediaSessionID, pos.Seconds())
 }
 
 // VolumeLevel returns receiver volume as a number between 0.0 and 1.0.
