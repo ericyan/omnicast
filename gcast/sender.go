@@ -189,7 +189,7 @@ func (s *Sender) MediaDuration() time.Duration {
 // IsIdle returns true if the recevier device does not have an receiver
 // app running or have media playback stopped.
 func (s *Sender) IsIdle() bool {
-	if s.r.Application() == nil {
+	if !s.r.IsConnected() {
 		log.Println("gcast: connection lost, reconnecting...")
 		if err := s.r.Connect(); err != nil {
 			log.Println(err)
@@ -197,7 +197,7 @@ func (s *Sender) IsIdle() bool {
 		}
 	}
 
-	if s.r.Application().IsIdleScreen || s.mediaInfo == nil {
+	if s.r.Application() == nil || s.r.Application().IsIdleScreen || s.mediaInfo == nil {
 		return true
 	}
 

@@ -49,7 +49,6 @@ func (vc vconn) NewPongMsg() *Msg {
 // to a new source and destination ID pair, a virtual connection will be
 // automatically established and keeped alive.
 type Channel struct {
-	addr        string
 	conn        *tls.Conn
 	done        chan struct{}
 	vconns      map[vconn]struct{}
@@ -61,39 +60,28 @@ type Channel struct {
 	subscriptions map[string][]chan *Msg
 }
 
-// NewChannel returns a new Channel.
-func NewChannel(addr string) *Channel {
-	return &Channel{
-		addr:          addr,
+// Dial connects to the remote receiver and returns a new Channel.
+func Dial(addr string) (*Channel, error) {
+	conn, err := tls.Dial("tcp", addr, &tls.Config{InsecureSkipVerify: true})
+	if err != nil {
+		return nil, err
+	}
+
+	c := &Channel{
+		conn:          conn,
+		done:          make(chan struct{}),
+		vconns:        make(map[vconn]struct{}),
+		heartbeat:     time.NewTicker(5 * time.Second),
+		lastMsgAt:     time.Unix(0, 0),
+		lastReqID:     0,
+		pendingReqs:   make(map[uint64]chan *Msg),
 		subscriptions: make(map[string][]chan *Msg),
 	}
-}
-
-// Connect makes a TLS connection to the receiver device.
-func (c *Channel) Connect() error {
-	if !c.IsClosed() {
-		return nil
-	}
-
-	conn, err := tls.Dial("tcp", c.addr, &tls.Config{
-		InsecureSkipVerify: true,
-	})
-	if err != nil {
-		return err
-	}
-
-	c.conn = conn
-	c.done = make(chan struct{})
-	c.vconns = make(map[vconn]struct{})
-	c.heartbeat = time.NewTicker(5 * time.Second)
-	c.lastMsgAt = time.Unix(0, 0)
-	c.lastReqID = 0
-	c.pendingReqs = make(map[uint64]chan *Msg)
 
 	go c.listen()
 	go c.keepalive()
 
-	return nil
+	return c, nil
 }
 
 // readMsg reads a message from the channel and blocks until it returns.
@@ -256,11 +244,7 @@ func (c *Channel) IsClosed() bool {
 // Request sends a request
 func (c *Channel) Request(srcID, descID, namespace string, req Request, respCh chan *Msg) error {
 	if c.IsClosed() {
-		log.Println("gcast: reconnecting...")
-		err := c.Connect()
-		if err != nil {
-			return err
-		}
+		return errors.New("gcast channel closed")
 	}
 
 	vc := vconn{srcID, descID}

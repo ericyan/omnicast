@@ -74,10 +74,7 @@ type Receiver struct {
 
 	ch *castv2.Channel
 
-	rsSubID     int
 	rsSubCh     chan *castv2.Msg
-	rsListeners []func(*ReceiverStatus)
-	msSubID     int
 	msSubCh     chan *castv2.Msg
 	msListeners []func(*MediaStatus)
 
@@ -87,87 +84,89 @@ type Receiver struct {
 
 // NewReceiver returns a new Receiver instance.
 func NewReceiver(addr string) *Receiver {
-	return &Receiver{
+	r := &Receiver{
 		Addr:    addr,
 		rsSubCh: make(chan *castv2.Msg),
 		msSubCh: make(chan *castv2.Msg),
 	}
+
+	go func() {
+		for msg := range r.rsSubCh {
+			rs := new(ReceiverStatus)
+			if err := json.Unmarshal([]byte(msg.Payload), &rs); err != nil {
+				continue
+			}
+
+			if apps := rs.Status.Applications; len(apps) > 0 {
+				r.app = apps[0]
+			} else {
+				r.app = nil
+			}
+
+			r.vol = rs.Status.Volume
+		}
+	}()
+
+	go func() {
+		for msg := range r.msSubCh {
+			ms, err := parseMediaStatus(msg)
+			if err != nil {
+				continue
+			}
+
+			for _, f := range r.msListeners {
+				f(ms)
+			}
+		}
+	}()
+
+	return r
 }
 
 // Connect makes a connection to the receiver.
 func (r *Receiver) Connect() error {
-	var err error
-
-	if r.ch == nil {
-		r.ch = castv2.NewChannel(r.Addr)
-
-		r.rsSubID, err = r.ch.Subscribe(castv2.TypeReceiverStatus, r.rsSubCh)
-		if err != nil {
-			return err
-		}
-
-		go func() {
-			for msg := range r.rsSubCh {
-				rs := new(ReceiverStatus)
-				if err := json.Unmarshal([]byte(msg.Payload), &rs); err != nil {
-					continue
-				}
-
-				if apps := rs.Status.Applications; len(apps) > 0 {
-					r.app = apps[0]
-				} else {
-					r.app = nil
-				}
-
-				r.vol = rs.Status.Volume
-
-				for _, f := range r.rsListeners {
-					f(rs)
-				}
-			}
-		}()
-
-		r.msSubID, err = r.ch.Subscribe(castv2.TypeMediaStatus, r.msSubCh)
-		if err != nil {
-			return err
-		}
-
-		go func() {
-			for msg := range r.msSubCh {
-				ms, err := parseMediaStatus(msg)
-				if err != nil {
-					continue
-				}
-
-				for _, f := range r.msListeners {
-					f(ms)
-				}
-			}
-		}()
+	if r.IsConnected() {
+		return nil
 	}
 
-	if r.ch.IsClosed() {
-		err = r.ch.Connect()
-		if err != nil {
-			return err
-		}
-
-		// Request receiver status to update state
-		r.ch.Request(
-			castv2.PlatformSenderID,
-			castv2.PlatformReceiverID,
-			castv2.NamespaceReceiver,
-			castv2.NewRequest(castv2.TypeGetStatus),
-			r.rsSubCh,
-		)
+	ch, err := castv2.Dial(r.Addr)
+	if err != nil {
+		return err
 	}
+	r.ch = ch
+
+	if _, err := r.ch.Subscribe(castv2.TypeReceiverStatus, r.rsSubCh); err != nil {
+		return err
+	}
+	if _, err := r.ch.Subscribe(castv2.TypeMediaStatus, r.msSubCh); err != nil {
+		return err
+	}
+
+	// Request receiver status to update state
+	r.ch.Request(
+		castv2.PlatformSenderID,
+		castv2.PlatformReceiverID,
+		castv2.NamespaceReceiver,
+		castv2.NewRequest(castv2.TypeGetStatus),
+		r.rsSubCh,
+	)
 
 	return nil
 }
 
+// IsConnected returns true if there is an active connection to the
+// receiver device.
+func (r *Receiver) IsConnected() bool {
+	if r.ch == nil || r.ch.IsClosed() {
+		return false
+	}
+
+	return true
+}
+
 // Application returns the current running receiver application, if any.
 func (r *Receiver) Application() *ReceiverApplication {
-	if r.ch == nil || r.ch.IsClosed() {
+	if !r.IsConnected() {
 		return nil
 	}
 
@@ -176,16 +175,11 @@ func (r *Receiver) Application() *ReceiverApplication {
 
 // Volume returns the receiver volume, if known.
 func (r *Receiver) Volume() *ReceiverVolume {
-	if r.ch == nil || r.ch.IsClosed() {
+	if !r.IsConnected() {
 		return nil
 	}
 
 	return r.vol
-}
-
-// OnStatusUpdate registers an event listener for status updates.
-func (r *Receiver) OnStatusUpdate(listener func(*ReceiverStatus)) {
-	r.rsListeners = append(r.rsListeners, listener)
 }
 
 func parseMediaStatus(msg *castv2.Msg) (*MediaStatus, error) {
@@ -368,8 +362,9 @@ func (r *Receiver) Seek(senderID string, mediaSessionID int, pos float64) error 
 
 // Close closes the connection to the receiver.
 func (r *Receiver) Close() error {
-	r.ch.Unsubscribe(castv2.TypeReceiverStatus, r.rsSubID)
-	r.ch.Unsubscribe(castv2.TypeMediaStatus, r.msSubID)
+	if !r.IsConnected() {
+		return nil
+	}
 
 	return r.ch.Close()
 }
