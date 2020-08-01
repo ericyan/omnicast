@@ -35,12 +35,16 @@ func main() {
 		os.Exit(0)
 	}
 
-	r := gcast.NewReceiver(*cast)
+	r, err := gcast.NewReceiver(*cast)
+	if err != nil {
+		log.Fatalln(err)
+	}
+
 	player, err := gcast.NewSender("sender-omnicast", r)
 	if err != nil {
 		log.Fatalln(err)
 	}
-	dev, err := av.NewMediaRenderer("Chromecast (DLNA)", player)
+	dev, err := av.NewMediaRenderer(r.Name+" (DLNA)", player)
 	if err != nil {
 		log.Fatalln(err)
 	}

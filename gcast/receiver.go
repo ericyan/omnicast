@@ -3,6 +3,7 @@ package gcast
 import (
 	"encoding/json"
 	"log"
+	"net"
 	"time"
 
 	"github.com/ericyan/omnicast/gcast/internal/castv2"
@@ -75,40 +76,34 @@ type MediaStatus struct {
 
 // Receiver represents a Google Cast device.
 type Receiver struct {
-	Addr string
+	Addr *net.TCPAddr
+	Name string
 
-	ch *castv2.Channel
+	ch     *castv2.Channel
+	events chan *castv2.Msg
 
-	app *ReceiverApplication
-	vol *ReceiverVolume
-
-	events     chan *castv2.Msg
+	app        *ReceiverApplication
+	vol        *ReceiverVolume
 	session    *MediaSession
 	lastUpdate time.Time
 }
 
 // NewReceiver returns a new Receiver instance.
-func NewReceiver(addr string) *Receiver {
-	r := &Receiver{Addr: addr}
+func NewReceiver(addr string) (*Receiver, error) {
+	tcpAddr, err := net.ResolveTCPAddr("tcp", addr)
+	if err != nil {
+		return nil, err
+	}
 
-	r.events = make(chan *castv2.Msg)
-	go func() {
-		for msg := range r.events {
-			var h castv2.Header
-			if err := json.Unmarshal([]byte(msg.Payload), &h); err != nil {
-				continue
-			}
+	info, err := GetDeviceInfo(tcpAddr.IP)
+	if err != nil {
+		return nil, err
+	}
 
-			switch h.Type {
-			case castv2.TypeReceiverStatus:
-				r.updateReceiverStatus(msg)
-			case castv2.TypeMediaStatus:
-				r.updateMediaStatus(msg)
-			}
-		}
-	}()
-
-	return r
+	return &Receiver{
+		Addr: tcpAddr,
+		Name: info.Name,
+	}, nil
 }
 
 func (r *Receiver) updateReceiverStatus(msg *castv2.Msg) error {
@@ -159,7 +154,26 @@ func (r *Receiver) Connect() error {
 		return nil
 	}
 
-	ch, err := castv2.Dial(r.Addr)
+	if r.events == nil {
+		r.events = make(chan *castv2.Msg)
+		go func() {
+			for msg := range r.events {
+				var h castv2.Header
+				if err := json.Unmarshal([]byte(msg.Payload), &h); err != nil {
+					continue
+				}
+
+				switch h.Type {
+				case castv2.TypeReceiverStatus:
+					r.updateReceiverStatus(msg)
+				case castv2.TypeMediaStatus:
+					r.updateMediaStatus(msg)
+				}
+			}
+		}()
+	}
+
+	ch, err := castv2.Dial(r.Addr.String())
 	if err != nil {
 		return err
 	}
