@@ -16,6 +16,28 @@ import (
 // DeviceCapability represents one of the defined device capabilities.
 type DeviceCapability uint
 
+// String returns the string representation of the device capability.
+func (c DeviceCapability) String() string {
+	switch c {
+	case None:
+		return "none"
+	case VideoOut:
+		return "video_out"
+	case VideoIn:
+		return "video_in"
+	case AudioOut:
+		return "audio_out"
+	case AudioIn:
+		return "audio_in"
+	case DevMode:
+		return "dev_mode"
+	case MultizoneGroup:
+		return "multizone_group"
+	default:
+		return strconv.Itoa(int(c))
+	}
+}
+
 // Defined Google Cast device capabilities.
 //
 // Source: https://github.com/chromium/chromium/blob/master/components/cast_channel/cast_socket.h#L46
