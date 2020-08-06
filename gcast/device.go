@@ -7,9 +7,26 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 
 	"github.com/grandcat/zeroconf"
+)
+
+// DeviceCapability represents one of the defined device capabilities.
+type DeviceCapability uint
+
+// Defined Google Cast device capabilities.
+//
+// Source: https://github.com/chromium/chromium/blob/master/components/cast_channel/cast_socket.h#L46
+const (
+	None           DeviceCapability = 0
+	VideoOut       DeviceCapability = 1 << 0
+	VideoIn        DeviceCapability = 1 << 1
+	AudioOut       DeviceCapability = 1 << 2
+	AudioIn        DeviceCapability = 1 << 3
+	DevMode        DeviceCapability = 1 << 4
+	MultizoneGroup DeviceCapability = 1 << 5
 )
 
 type DeviceInfo struct {
@@ -19,6 +36,39 @@ type DeviceInfo struct {
 	IPv4 net.IP
 	IPv6 net.IP
 	Port int
+
+	capabilities DeviceCapability
+}
+
+// Capabilities returns a list of device capabilities.
+func (d *DeviceInfo) Capabilities() []DeviceCapability {
+	result := make([]DeviceCapability, 0)
+
+	if d.capabilities&VideoOut != 0 {
+		result = append(result, VideoOut)
+	}
+
+	if d.capabilities&VideoIn != 0 {
+		result = append(result, VideoIn)
+	}
+
+	if d.capabilities&AudioOut != 0 {
+		result = append(result, AudioOut)
+	}
+
+	if d.capabilities&AudioIn != 0 {
+		result = append(result, AudioIn)
+	}
+
+	if d.capabilities&DevMode != 0 {
+		result = append(result, DevMode)
+	}
+
+	if d.capabilities&MultizoneGroup != 0 {
+		result = append(result, MultizoneGroup)
+	}
+
+	return result
 }
 
 func GetDeviceInfo(ip net.IP) (*DeviceInfo, error) {
@@ -92,6 +142,13 @@ func Discover(ctx context.Context) (<-chan *DeviceInfo, error) {
 							dev.Name = val
 						case "md":
 							dev.Model = val
+						case "ca":
+							ca, err := strconv.Atoi(val)
+							if err != nil {
+								dev.capabilities = None
+							}
+
+							dev.capabilities = DeviceCapability(ca)
 						}
 					}
 				}
