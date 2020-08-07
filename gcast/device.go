@@ -64,6 +64,11 @@ type DeviceInfo struct {
 	capabilities DeviceCapability
 }
 
+// TCPAddr returns IPv4 and Port as net.TCPAddr.
+func (d *DeviceInfo) TCPAddr() *net.TCPAddr {
+	return &net.TCPAddr{IP: d.IPv4, Port: d.Port}
+}
+
 // Capabilities returns a list of device capabilities.
 func (d *DeviceInfo) Capabilities() []DeviceCapability {
 	result := make([]DeviceCapability, 0)

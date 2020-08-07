@@ -60,9 +60,9 @@ type Channel struct {
 }
 
 // Dial connects to the remote receiver and returns a new Channel.
-func Dial(addr string) (*Channel, error) {
+func Dial(addr *net.TCPAddr) (*Channel, error) {
 	dialer := &net.Dialer{Timeout: time.Duration(2 * time.Second)}
-	conn, err := tls.DialWithDialer(dialer, "tcp", addr, &tls.Config{InsecureSkipVerify: true})
+	conn, err := tls.DialWithDialer(dialer, addr.Network(), addr.String(), &tls.Config{InsecureSkipVerify: true})
 	if err != nil {
 		return nil, err
 	}

@@ -3,7 +3,6 @@ package gcast
 import (
 	"encoding/json"
 	"log"
-	"net"
 	"time"
 
 	"github.com/ericyan/omnicast/gcast/internal/castv2"
@@ -76,8 +75,7 @@ type MediaStatus struct {
 
 // Receiver represents a Google Cast device.
 type Receiver struct {
-	Addr *net.TCPAddr
-	Name string
+	*DeviceInfo
 
 	ch     *castv2.Channel
 	events chan *castv2.Msg
@@ -89,21 +87,8 @@ type Receiver struct {
 }
 
 // NewReceiver returns a new Receiver instance.
-func NewReceiver(addr string) (*Receiver, error) {
-	tcpAddr, err := net.ResolveTCPAddr("tcp", addr)
-	if err != nil {
-		return nil, err
-	}
-
-	info, err := GetDeviceInfo(tcpAddr.IP)
-	if err != nil {
-		return nil, err
-	}
-
-	return &Receiver{
-		Addr: tcpAddr,
-		Name: info.Name,
-	}, nil
+func NewReceiver(dev *DeviceInfo) *Receiver {
+	return &Receiver{DeviceInfo: dev}
 }
 
 func (r *Receiver) updateReceiverStatus(msg *castv2.Msg) error {
@@ -173,7 +158,7 @@ func (r *Receiver) Connect() error {
 		}()
 	}
 
-	ch, err := castv2.Dial(r.Addr.String())
+	ch, err := castv2.Dial(r.TCPAddr())
 	if err != nil {
 		return err
 	}
