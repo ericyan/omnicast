@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/google/uuid"
 	"github.com/grandcat/zeroconf"
 )
 
@@ -52,6 +53,7 @@ const (
 )
 
 type DeviceInfo struct {
+	UUID  uuid.UUID
 	Name  string `json:"name"`
 	Model string
 
@@ -160,6 +162,8 @@ func Discover(ctx context.Context) (<-chan *DeviceInfo, error) {
 						key, val := kv[0], kv[1]
 
 						switch key {
+						case "id":
+							dev.UUID, _ = uuid.Parse(val)
 						case "fn":
 							dev.Name = val
 						case "md":
