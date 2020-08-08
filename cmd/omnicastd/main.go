@@ -1,12 +1,14 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"log"
 	"os"
 	"os/signal"
 	"strconv"
 	"syscall"
+	"time"
 
 	"github.com/ericyan/iputil"
 
@@ -26,7 +28,6 @@ func init() {
 func main() {
 	host := flag.String("host", defaultHost, "host")
 	port := flag.Int("p", 2278, "port")
-	cast := flag.String("cast", "", "address to cast device")
 	h := flag.Bool("h", false, "show help")
 	flag.Parse()
 
@@ -35,9 +36,20 @@ func main() {
 		os.Exit(0)
 	}
 
-	r, err := gcast.NewReceiver(*cast)
+	ctx, stopDiscover := context.WithTimeout(context.Background(), time.Duration(10)*time.Second)
+
+	ch, err := gcast.Discover(ctx)
 	if err != nil {
 		log.Fatalln(err)
+	}
+
+	var r *gcast.Receiver
+	for dev := range ch {
+		if dev.CapableOf(gcast.VideoOut, gcast.AudioOut) {
+			log.Printf("Found Google Cast device: %s (%s)\n", dev.Name, dev.UUID)
+			r = gcast.NewReceiver(dev)
+			stopDiscover()
+		}
 	}
 
 	player, err := gcast.NewSender("sender-omnicast", r)

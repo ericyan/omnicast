@@ -100,6 +100,16 @@ func (d *DeviceInfo) Capabilities() []DeviceCapability {
 	return result
 }
 
+// CapableOf returns true if the device has all given capabilities.
+func (d *DeviceInfo) CapableOf(capabilities ...DeviceCapability) bool {
+	var mask DeviceCapability
+	for _, c := range capabilities {
+		mask |= c
+	}
+
+	return d.capabilities&mask == mask
+}
+
 func GetDeviceInfo(ip net.IP) (*DeviceInfo, error) {
 	host := &net.TCPAddr{IP: ip, Port: 8008}
 	endpoint := &url.URL{
