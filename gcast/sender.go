@@ -25,8 +25,9 @@ type Sender struct {
 	r *Receiver
 }
 
-// NewSender returns a new Sender and connects to the Receiver.
-func NewSender(id string, r *Receiver) (*Sender, error) {
+// NewSender returns a new Sender and connects to the device.
+func NewSender(id string, dev *DeviceInfo) (*Sender, error) {
+	r := &Receiver{DeviceInfo: dev}
 	s := &Sender{ID: id, r: r}
 
 	if err := s.r.Connect(); err != nil {
@@ -34,6 +35,10 @@ func NewSender(id string, r *Receiver) (*Sender, error) {
 	}
 
 	return s, nil
+}
+
+func (s *Sender) Name() string {
+	return s.r.Name
 }
 
 func (s *Sender) ensureAppLaunched(appID string) error {

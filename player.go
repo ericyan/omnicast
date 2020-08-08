@@ -7,6 +7,7 @@ import (
 
 // MediaPlayer is a generic media player.
 type MediaPlayer interface {
+	Name() string
 	MediaLoader
 	MediaInfoReporter
 	PlaybackStateReporter

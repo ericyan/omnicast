@@ -12,6 +12,7 @@ import (
 
 	"github.com/ericyan/iputil"
 
+	"github.com/ericyan/omnicast"
 	"github.com/ericyan/omnicast/gcast"
 	"github.com/ericyan/omnicast/upnp"
 	"github.com/ericyan/omnicast/upnp/av"
@@ -43,20 +44,22 @@ func main() {
 		log.Fatalln(err)
 	}
 
-	var r *gcast.Receiver
+	var player omnicast.MediaPlayer
 	for dev := range ch {
 		if dev.CapableOf(gcast.VideoOut, gcast.AudioOut) {
 			log.Printf("Found Google Cast device: %s (%s)\n", dev.Name, dev.UUID)
-			r = gcast.NewReceiver(dev)
+
+			sender, err := gcast.NewSender("sender-omnicast", dev)
+			if err != nil {
+				log.Fatalln(err)
+			}
+
+			player = sender
 			stopDiscover()
 		}
 	}
 
-	player, err := gcast.NewSender("sender-omnicast", r)
-	if err != nil {
-		log.Fatalln(err)
-	}
-	dev, err := av.NewMediaRenderer(r.Name+" (DLNA)", player)
+	dev, err := av.NewMediaRenderer(player.Name()+" (DLNA)", player)
 	if err != nil {
 		log.Fatalln(err)
 	}

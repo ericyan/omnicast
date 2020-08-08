@@ -86,11 +86,6 @@ type Receiver struct {
 	lastUpdate time.Time
 }
 
-// NewReceiver returns a new Receiver instance.
-func NewReceiver(dev *DeviceInfo) *Receiver {
-	return &Receiver{DeviceInfo: dev}
-}
-
 func (r *Receiver) updateReceiverStatus(msg *castv2.Msg) error {
 	rs := new(ReceiverStatus)
 	if err := json.Unmarshal([]byte(msg.Payload), &rs); err != nil {
