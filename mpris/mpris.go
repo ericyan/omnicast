@@ -99,3 +99,56 @@ func (p *Player) SeekTo(pos time.Duration) {
 
 	p.call("Player.SetPosition", trackID, pos.Microseconds())
 }
+
+// PlaybackStatus return the current playback status.
+func (p *Player) PlaybackStatus() string {
+	v, err := p.bo.GetProperty(DBusPath + ".Player.PlaybackStatus")
+	if err != nil {
+		return "UNKNOWN"
+	}
+
+	return v.String()
+}
+
+// IsIdle returns true if the media playback stopped.
+func (p *Player) IsIdle() bool {
+	return p.PlaybackStatus() == "Stopped"
+}
+
+// IsPlaying returns true if the player is actively playing content.
+func (p *Player) IsPlaying() bool {
+	return p.PlaybackStatus() == "Playing"
+}
+
+// IsPaused returns true if playback is paused.
+func (p *Player) IsPaused() bool {
+	return p.PlaybackStatus() == "Paused"
+}
+
+// IsBuffering always returns false as the MPRIS API does not provide
+// this information.
+func (p *Player) IsBuffering() bool {
+	return false
+}
+
+// PlaybackPosition returns the current position of media playback from
+// the beginning of media content.
+func (p *Player) PlaybackPosition() time.Duration {
+	v, err := p.bo.GetProperty(DBusPath + ".Player.Position")
+	if err != nil {
+		return time.Duration(0)
+	}
+
+	pos := v.Value().(int64)
+	return time.Duration(pos) * time.Microsecond
+}
+
+// PlaybackRate returns the ratio of speed that media is played at.
+func (p *Player) PlaybackRate() float32 {
+	v, err := p.bo.GetProperty(DBusPath + ".Player.Rate")
+	if err != nil {
+		return 0
+	}
+
+	return float32(v.Value().(float64))
+}
