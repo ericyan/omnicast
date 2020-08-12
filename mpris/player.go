@@ -133,7 +133,7 @@ func (p *Player) PlaybackStatus() string {
 		return "UNKNOWN"
 	}
 
-	return v.String()
+	return v.Value().(string)
 }
 
 // IsIdle returns true if the media playback stopped.

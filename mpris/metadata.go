@@ -2,7 +2,6 @@ package mpris
 
 import (
 	"net/url"
-	"strings"
 	"time"
 
 	"github.com/godbus/dbus/v5"
@@ -25,7 +24,7 @@ func (m MediaMetadata) Title() string {
 		return ""
 	}
 
-	return v.String()
+	return v.Value().(string)
 }
 
 // Subtitle returns the descriptive subtitle of the content. Usually,
@@ -36,7 +35,7 @@ func (m MediaMetadata) Subtitle() string {
 		return ""
 	}
 
-	return v.String()
+	return v.Value().(string)
 }
 
 // MediaDuration returns the duration of the media.
@@ -56,7 +55,7 @@ func (m MediaMetadata) MediaURL() *url.URL {
 		return nil
 	}
 
-	u, err := url.Parse(strings.Trim(v.String(), `"`))
+	u, err := url.Parse(v.Value().(string))
 	if err != nil {
 		return nil
 	}
@@ -71,7 +70,7 @@ func (m MediaMetadata) ImageURL() *url.URL {
 		return nil
 	}
 
-	u, err := url.Parse(strings.Trim(v.String(), `"`))
+	u, err := url.Parse(v.Value().(string))
 	if err != nil {
 		return nil
 	}
