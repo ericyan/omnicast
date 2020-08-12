@@ -13,9 +13,9 @@ import (
 // https://www.freedesktop.org/wiki/Specifications/mpris-spec/metadata/
 type MediaMetadata map[string]dbus.Variant
 
-// TrackID returns the raw mpris:trackid without parsing it.
-func (m MediaMetadata) TrackID() dbus.Variant {
-	return m["mpris:trackid"]
+// TrackID returns the track ID as a D-Bus object path.
+func (m MediaMetadata) TrackID() dbus.ObjectPath {
+	return m["mpris:trackid"].Value().(dbus.ObjectPath)
 }
 
 // Title returns the descriptive title of the content.

@@ -121,7 +121,7 @@ func (p *Player) Stop() {
 
 // SeekTo sets the current playback position to pos.
 func (p *Player) SeekTo(pos time.Duration) {
-	trackID := 0 // FIXME: get the actual track ID.
+	trackID := p.metadata().TrackID()
 
 	p.call("Player.SetPosition", trackID, pos.Microseconds())
 }
