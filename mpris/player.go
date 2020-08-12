@@ -78,6 +78,32 @@ func (p *Player) Load(media *url.URL, metadata omnicast.MediaMetadata) error {
 	return err
 }
 
+// metadata returns the MPRIS metadata.
+func (p *Player) metadata() MediaMetadata {
+	v, err := p.bo.GetProperty(DBusPath + ".Player.Metadata")
+	if err != nil {
+		return nil
+	}
+
+	m := v.Value().(map[string]dbus.Variant)
+	return MediaMetadata(m)
+}
+
+// MediaURL returns the URL of current loaded media.
+func (p *Player) MediaURL() *url.URL {
+	return p.metadata().MediaURL()
+}
+
+// MediaMetadata returns the metadata of current loaded media.
+func (p *Player) MediaMetadata() omnicast.MediaMetadata {
+	return p.metadata()
+}
+
+// MediaDuration returns the duration of current loaded media.
+func (p *Player) MediaDuration() time.Duration {
+	return p.metadata().MediaDuration()
+}
+
 // Play starts or resumes playback.
 func (p *Player) Play() {
 	p.call("Player.Play")
