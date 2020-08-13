@@ -178,3 +178,35 @@ func (p *Player) PlaybackRate() float32 {
 
 	return float32(v.Value().(float64))
 }
+
+// VolumeLevel returns receiver volume as a number between 0.0 and 1.0.
+func (p *Player) VolumeLevel() float64 {
+	v, err := p.bo.GetProperty(DBusPath + ".Player.Volume")
+	if err != nil {
+		return 0
+	}
+
+	return v.Value().(float64)
+}
+
+// IsMuted returns true if the receiver is muted.
+func (p *Player) IsMuted() bool {
+	// 0 means mute in MPRIS
+	return p.VolumeLevel() == 0
+}
+
+// SetVolumeLevel sets receiver volume level.
+func (p *Player) SetVolumeLevel(level float64) {
+	p.bo.SetProperty(DBusPath+".Player.Volume", level)
+}
+
+// Mute mutes the receiver.
+func (p *Player) Mute() {
+	p.SetVolumeLevel(0)
+}
+
+// Unmute unmutes the receiver.
+func (p *Player) Unmute() {
+	// Set volume level to maximum as previous volume level is unknown.
+	p.SetVolumeLevel(1)
+}
