@@ -2,7 +2,9 @@ package mpris
 
 import (
 	"errors"
+	"fmt"
 	"net/url"
+	"os"
 	"strings"
 	"time"
 
@@ -45,8 +47,7 @@ func Discover() ([]string, error) {
 
 // Player represents a MPRIS player.
 type Player struct {
-	dest string
-	bo   dbus.BusObject
+	bo dbus.BusObject
 }
 
 // NewPlayer returns a new player.
@@ -58,12 +59,19 @@ func NewPlayer(dest string) (*Player, error) {
 
 	bo := conn.Object(dest, DBusInterface)
 
-	return &Player{dest, bo}, nil
+	return &Player{bo}, nil
 }
 
 // Name returns the name of the player instace.
 func (p *Player) Name() string {
-	return p.dest
+	name := strings.TrimPrefix(p.bo.Destination(), DBusPath+".")
+
+	hostname, err := os.Hostname()
+	if err != nil {
+		return name
+	}
+
+	return fmt.Sprintf("%s (%s)", name, hostname)
 }
 
 // call invokes a MPRIS method.
