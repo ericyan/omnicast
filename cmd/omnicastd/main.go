@@ -76,6 +76,8 @@ func main() {
 		os.Exit(0)
 	}
 
+	log.Printf("Listening on %s:%d...", *host, *port)
+
 	var player omnicast.MediaPlayer
 
 	player, err := gcastPlayer()
