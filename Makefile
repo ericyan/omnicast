@@ -12,6 +12,11 @@ bin/omnicastd-amd64: deps
 bin/omnicastd-arm64: deps
 	GOARCH=arm64 go build -o bin/omnicastd-arm64 cmd/omnicastd/main.go
 
+.PHONY: images
+images:
+	docker build --build-arg ARCH=amd64 -t ericyan/omnicast:amd64 .
+	docker build --build-arg ARCH=arm64 -t ericyan/omnicast:arm64 .
+
 .PHONY: clean
 clean:
 	rm -f bin/omnicastd-*
