@@ -14,8 +14,8 @@ bin/omnicastd-arm64: deps
 
 .PHONY: images
 images:
-	docker build --build-arg ARCH=amd64 -t ericyan/omnicast:amd64 .
-	docker build --build-arg ARCH=arm64 -t ericyan/omnicast:arm64 .
+	docker build --build-arg ARCH=amd64 -t quay.io/ericyan/omnicast:amd64 .
+	docker build --build-arg ARCH=arm64 -t quay.io/ericyan/omnicast:arm64 .
 
 .PHONY: clean
 clean:
