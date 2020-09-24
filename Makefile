@@ -12,10 +12,19 @@ bin/omnicastd-amd64: deps
 bin/omnicastd-arm64: deps
 	GOARCH=arm64 go build -o bin/omnicastd-arm64 cmd/omnicastd/main.go
 
+img = quay.io/ericyan/omnicast
+
 .PHONY: images
 images:
-	docker build --build-arg ARCH=amd64 -t quay.io/ericyan/omnicast:amd64 .
-	docker build --build-arg ARCH=arm64 -t quay.io/ericyan/omnicast:arm64 .
+	docker build --build-arg ARCH=amd64 -t $(img):amd64 .
+	docker build --build-arg ARCH=arm64 -t $(img):arm64 .
+
+.PHONY: manifest
+manifest: images
+	docker manifest create $(img) $(img):amd64 $(img):arm64
+	docker manifest annotate $(img) $(img):amd64 --os linux --arch amd64
+	docker manifest annotate $(img) $(img):arm64 --os linux --arch arm64 --variant v8
+	docker manifest push $(img)
 
 .PHONY: clean
 clean:
