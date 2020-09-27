@@ -8,7 +8,7 @@ WORKDIR /go/src/github.com/ericyan/omnicast
 COPY . .
 RUN make bin/omnicastd-${ARCH}
 
-FROM busybox:glibc
+FROM scratch
 ARG ARCH
 COPY --from=builder /go/src/github.com/ericyan/omnicast/bin/omnicastd-${ARCH} /usr/local/bin/omnicastd
-CMD omnicastd
+ENTRYPOINT ["/usr/local/bin/omnicastd"]
