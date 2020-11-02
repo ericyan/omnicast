@@ -4,7 +4,6 @@ import (
 	"log"
 	"net/url"
 	"strconv"
-	"time"
 
 	"github.com/ericyan/omnicast"
 	"github.com/ericyan/omnicast/upnp"
@@ -108,23 +107,22 @@ func AVTransport(player omnicast.MediaPlayer) *upnp.Service {
 			return
 		}
 
-		var pos time.Duration
 		if !player.IsIdle() {
-			pos = player.PlaybackPosition()
-
 			resp.Args["Track"] = "1"
-			resp.Args["TrackURI"] = player.MediaURL().String()
-			resp.Args["TrackDuration"] = types.FormatDuration(player.MediaDuration())
 		} else {
-			pos = 0
-
 			resp.Args["Track"] = "0"
-			resp.Args["TrackURI"] = ""
-			resp.Args["TrackDuration"] = "00:00:00"
 		}
 
+		if url := player.MediaURL(); url != nil {
+			resp.Args["TrackURI"] = url.String()
+		} else {
+			resp.Args["TrackURI"] = ""
+		}
+
+		resp.Args["TrackDuration"] = types.FormatDuration(player.MediaDuration())
 		resp.Args["TrackMetaData"] = "NOT_IMPLEMENTED"
 
+		pos := player.PlaybackPosition()
 		resp.Args["RelTime"] = types.FormatDuration(pos)
 		resp.Args["AbsTime"] = types.FormatDuration(pos)
 		resp.Args["RelCount"] = strconv.Itoa(int(pos.Seconds()))
