@@ -1,7 +1,6 @@
 package main
 
 import (
-	"errors"
 	"flag"
 	"log"
 	"os"
@@ -26,22 +25,23 @@ func init() {
 	}
 }
 
-func mprisPlayer() (*mpris.Player, error) {
-	dests, err := mpris.Discover()
-	if err != nil {
-		return nil, err
+func findPlayer(gcastHint, mprisHint string) (omnicast.MediaPlayer, error) {
+	if mprisHint != "" {
+		return mpris.NewPlayer(mprisHint)
 	}
 
-	for _, dest := range dests {
-		return mpris.NewPlayer(dest)
+	if gcastHint != "" {
+		return gcast.Find(gcastHint)
 	}
 
-	return nil, errors.New("no MPRIS player found")
+	return gcast.Find()
 }
 
 func main() {
 	host := flag.String("host", defaultHost, "host")
 	port := flag.Int("p", 2278, "port")
+	gcastHint := flag.String("gcast", "", "Google Cast device name or UUID")
+	mprisHint := flag.String("mpris", "", "MPRIS destination")
 	h := flag.Bool("h", false, "show help")
 	flag.Parse()
 
@@ -52,17 +52,9 @@ func main() {
 
 	log.Printf("Listening on %s:%d...", *host, *port)
 
-	var player omnicast.MediaPlayer
-
-	player, err := gcast.Find()
+	player, err := findPlayer(*gcastHint, *mprisHint)
 	if err != nil {
-		log.Println(err)
-
-		// Fallback to MPRIS
-		player, err = mprisPlayer()
-		if err != nil {
-			log.Fatalln(err)
-		}
+		log.Fatalln(err)
 	}
 
 	dev, err := av.NewMediaRenderer(player.Name()+" (DLNA)", player)
