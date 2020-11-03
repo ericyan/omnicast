@@ -3,12 +3,15 @@ package gcast
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io/ioutil"
+	"log"
 	"net"
 	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/grandcat/zeroconf"
@@ -200,4 +203,34 @@ func Discover(ctx context.Context) (<-chan *DeviceInfo, error) {
 	}()
 
 	return devCh, nil
+}
+
+// Find returns a Sender for the first device found with matching hints.
+func Find(hints ...string) (*Sender, error) {
+	ctx, stopDiscovery := context.WithTimeout(context.Background(), time.Duration(10)*time.Second)
+	ch, err := Discover(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	for dev := range ch {
+		if dev.CapableOf(VideoOut, AudioOut) {
+			log.Printf("Found Google Cast device: %s (%s)\n", dev.Name, dev.UUID)
+
+			// If no hints given, just return the first one found.
+			if len(hints) == 0 {
+				stopDiscovery()
+				return NewSender("sender-omnicast", dev)
+			}
+
+			for _, hint := range hints {
+				if hint == dev.Name || hint == dev.UUID.String() {
+					stopDiscovery()
+					return NewSender("sender-omnicast", dev)
+				}
+			}
+		}
+	}
+
+	return nil, errors.New("no Google Cast device found")
 }
